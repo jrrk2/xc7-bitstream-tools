@@ -96,6 +96,16 @@ echo "  Installing fasm package for bitstream conversion..."
 echo "  Installing pyyaml for Project X-Ray..."
 "${PYTHON}" -m pip install -q pyyaml 2>&1 | grep -v "already satisfied" || true
 
+# Install all dependencies for FASM→bitstream conversion pipeline
+echo "  Installing conversion pipeline dependencies..."
+"${PYTHON}" -m pip install -q \
+    intervaltree \
+    numpy \
+    pyjson5 \
+    progressbar33 \
+    simplejson \
+    2>&1 | grep -v "already satisfied" || true
+
 # 3. Decide whether to build nextpnr
 echo "[3/6] Checking nextpnr configuration..."
 
