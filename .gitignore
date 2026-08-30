@@ -46,4 +46,4 @@ examples/vc707-johnson/johnson.fasm
 # macOS
 .DS_Store
 .AppleDouble
-.LSOverride
+.LSOverride.chipdb/
