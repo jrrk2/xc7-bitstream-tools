@@ -33,6 +33,18 @@ jobs:
         with:
           submodules: true
 
+      - name: Get nextpnr commit hash for cache key
+        id: nextpnr-hash
+        run: echo "hash=$(cd nextpnr && git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Cache xc7vx485t chipdb artifacts
+        uses: actions/cache@v4
+        with:
+          path: build/himbaechel/uarch/xilinx/chipdb-xc7vx485t.bba
+          key: xc7vx485t-chipdb-${{ steps.nextpnr-hash.outputs.hash }}
+          restore-keys: |
+            xc7vx485t-chipdb-
+
       - name: Install system dependencies
         run: |
           sudo apt-get update

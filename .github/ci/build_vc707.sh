@@ -99,15 +99,16 @@ echo "  Installing pyyaml for Project X-Ray..."
 # 3. Decide whether to build nextpnr
 echo "[3/6] Checking nextpnr configuration..."
 
-# Use precompiled xilinx chipdb artifacts to avoid expensive Python generation in CI
-# The .bba file is the expensive Python-generated intermediate (329MB); .bin is fast bbasm compilation
-PRECOMPILED_BBA="${REPO_ROOT}/.chipdb/himbaechel/uarch/xilinx/chipdb-xc7vx485t.bba"
-if [[ -f "${PRECOMPILED_BBA}" ]]; then
-    echo "  Found precompiled xc7vx485t chipdb .bba (329MB, skips ~15GB Python generation)"
-    echo "  Pre-installing artifact before cmake configure..."
-    mkdir -p "${NEXTPNR_BUILD}/himbaechel/uarch/xilinx"
-    cp "${PRECOMPILED_BBA}" "${NEXTPNR_BUILD}/himbaechel/uarch/xilinx/chipdb-xc7vx485t.bba"
-    echo "  .bba placed — cmake will skip expensive xilinx_gen.py and use fast bbasm compilation"
+# Use cached xilinx chipdb .bba if available (GitHub Actions cache, keyed by nextpnr commit)
+# If cache hit: cmake will skip expensive xilinx_gen.py, use fast bbasm compilation
+# If cache miss: cmake regenerates; artifact saved for next run
+CACHED_BBA="${NEXTPNR_BUILD}/himbaechel/uarch/xilinx/chipdb-xc7vx485t.bba"
+if [[ -f "${CACHED_BBA}" ]]; then
+    echo "  Found cached xc7vx485t chipdb .bba (GitHub Actions cache hit)"
+    echo "  Will skip expensive xilinx_gen.py Python generation (~15GB memory)"
+else
+    echo "  No cached chipdb .bba; will generate (may be memory-tight)"
+    echo "  Generated artifact will be cached for future runs (keyed by nextpnr commit)"
 fi
 
 if [[ -z "${BUILD_NEXTPNR}" ]]; then
