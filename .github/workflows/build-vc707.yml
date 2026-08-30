@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - '.gitmodules'
       - 'examples/vc707-johnson/**'
       - 'scripts/**'
       - 'backends/**'
@@ -14,6 +15,7 @@ on:
     branches:
       - main
     paths:
+      - '.gitmodules'
       - 'examples/vc707-johnson/**'
       - 'scripts/**'
       - 'backends/**'
