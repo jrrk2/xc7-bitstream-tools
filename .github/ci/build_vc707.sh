@@ -92,6 +92,10 @@ fi
 echo "  Installing fasm package for bitstream conversion..."
 "${PYTHON}" -m pip install -q fasm 2>&1 | grep -v "already satisfied" || true
 
+# Ensure yaml support is available (required by prjxray)
+echo "  Installing pyyaml for Project X-Ray..."
+"${PYTHON}" -m pip install -q pyyaml 2>&1 | grep -v "already satisfied" || true
+
 # 3. Decide whether to build nextpnr
 echo "[3/6] Checking nextpnr configuration..."
 
