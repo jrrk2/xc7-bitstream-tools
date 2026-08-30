@@ -1,8 +1,49 @@
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+.pytest_cache/
+
+# Virtual environments
 .venv/
-.validation/
+venv/
+env/
+
+# Build directories
+build/
+.build/
+prjxray/build/
+
+# Build artifacts and outputs
 *.bit
 *.frames
 *.uf2
+*.fasm
+
+# Dependencies (cache only, not version controlled)
+.deps/
+prjxray-db/
+
+# Temporary directories
+.validation/
+
+# Generated synthesis/routing artifacts
 examples/vc707-johnson/johnson.json
 examples/vc707-johnson/johnson.fasm
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
