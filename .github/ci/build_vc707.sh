@@ -88,6 +88,10 @@ if [[ -f "${REPO_ROOT}/prjxray/requirements.txt" ]]; then
     "${PYTHON}" -m pip install -q -r "${REPO_ROOT}/prjxray/requirements.txt" 2>&1 | grep -v "already satisfied" || true
 fi
 
+# Ensure fasm package is available (required for FASM→bitstream conversion)
+echo "  Installing fasm package for bitstream conversion..."
+"${PYTHON}" -m pip install -q fasm 2>&1 | grep -v "already satisfied" || true
+
 # 3. Decide whether to build nextpnr
 echo "[3/6] Checking nextpnr configuration..."
 
