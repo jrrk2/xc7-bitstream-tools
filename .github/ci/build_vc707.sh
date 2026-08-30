@@ -90,6 +90,14 @@ fi
 
 # 3. Decide whether to build nextpnr
 echo "[3/6] Checking nextpnr configuration..."
+
+# Use precompiled chipdb binary if available (avoids expensive generation in CI)
+PRECOMPILED_CHIPDB="${REPO_ROOT}/.chipdb/himbaechel/xilinx/chipdb-xc7vx485t.bin"
+if [[ -f "${PRECOMPILED_CHIPDB}" ]]; then
+    echo "  Found precompiled xc7vx485t chipdb binary (75MB cached)"
+    echo "  This will be used instead of regenerating in CI (saves ~10-15 min runtime)"
+fi
+
 if [[ -z "${BUILD_NEXTPNR}" ]]; then
     # Auto-detect: rebuild if CMakeCache doesn't exist
     if [[ ! -f "${NEXTPNR_BUILD}/CMakeCache.txt" ]]; then
@@ -117,6 +125,15 @@ if [[ "${BUILD_NEXTPNR}" == "1" ]]; then
         -DHIMBAECHEL_PRJXRAY_DB="${XRAY_DB_PATH}"
     
     log_memory "after cmake configure (before build)"
+    
+    # Use precompiled xc7vx485t chipdb if available (skips ~10-15 min database generation)
+    if [[ -f "${PRECOMPILED_CHIPDB}" ]]; then
+        echo "  Installing precompiled xc7vx485t chipdb (avoids 15GB peak memory during generation)..."
+        mkdir -p himbaechel/uarch/xilinx
+        mkdir -p share/himbaechel/xilinx
+        cp "${PRECOMPILED_CHIPDB}" himbaechel/uarch/xilinx/chipdb-xc7vx485t.bin
+        cp "${PRECOMPILED_CHIPDB}" share/himbaechel/xilinx/chipdb-xc7vx485t.bin
+    fi
     
     echo "  Building nextpnr binary (monitoring memory during xc7vx485t chipdb generation)..."
     # Monitor memory during build: log every 30 seconds in background
