@@ -1,0 +1,9 @@
+[submodule "nextpnr"]
+	path = nextpnr
+	url = https://github.com/openXC7/nextpnr.git
+[submodule "prjxray"]
+	path = prjxray
+	url = https://github.com/openXC7/prjxray.git
+[submodule "bit2verilog"]
+	path = bit2verilog
+	url = https://github.com/jrrk2/bit2verilog.git

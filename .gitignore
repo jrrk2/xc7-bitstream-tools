@@ -1,0 +1,8 @@
+__pycache__/
+.venv/
+.validation/
+*.bit
+*.frames
+*.uf2
+examples/vc707-johnson/johnson.json
+examples/vc707-johnson/johnson.fasm
