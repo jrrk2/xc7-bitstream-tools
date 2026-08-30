@@ -1,0 +1,67 @@
+name: Build VC707 Bitstream
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'examples/vc707-johnson/**'
+      - 'scripts/**'
+      - 'backends/**'
+      - '.github/workflows/build-vc707.yml'
+      - '.github/ci/build_vc707.sh'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'examples/vc707-johnson/**'
+      - 'scripts/**'
+      - 'backends/**'
+      - '.github/workflows/build-vc707.yml'
+      - '.github/ci/build_vc707.sh'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build VC707 Johnson Bitstream
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            git \
+            python3 \
+            python3-venv \
+            yosys
+
+      - name: Run CI build script
+        env:
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+          BUILD_NEXTPNR: 1
+          YOSYS: yosys
+        run: bash .github/ci/build_vc707.sh
+
+      - name: Upload bitstream artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vc707-bitstream
+          path: johnson_vc707.bit
+          retention-days: 7
+
+      - name: Report results
+        if: always()
+        run: |
+          echo "Build Status: ${{ job.status }}"
+          if [[ -f johnson_vc707.bit ]]; then
+            echo "Bitstream size: $(stat -c %s johnson_vc707.bit) bytes"
+            file johnson_vc707.bit || true
+          fi
