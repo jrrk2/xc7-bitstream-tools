@@ -23,6 +23,9 @@ on:
       - '.github/ci/build_vc707.sh'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build VC707 Johnson Bitstream
@@ -72,6 +75,18 @@ jobs:
           name: vc707-bitstream
           path: johnson_vc707.bit
           retention-days: 7
+
+      - name: Publish public release
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: vc707-build-${{ github.run_number }}
+          name: VC707 Johnson bitstream (build ${{ github.run_number }})
+          body: |
+            Automated release from CI run ${{ github.run_id }}.
+            Commit: ${{ github.sha }}
+          files: johnson_vc707.bit
+          make_latest: true
 
       - name: Report results
         if: always()
