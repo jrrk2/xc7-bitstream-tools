@@ -23,6 +23,13 @@ set -e
 
 set -o pipefail
 
+# Memory monitoring helper
+log_memory() {
+    local label="${1:-Memory status}"
+    local mem_info=$(free -h | awk '/^Mem:/ {print $2 " total, " $3 " used, " $4 " available"}')
+    echo "  [${label}] ${mem_info}"
+}
+
 # Set defaults
 : ${GITHUB_WORKSPACE:=$(git rev-parse --show-toplevel 2>/dev/null || pwd)}
 : ${DEPS_PATH:=${GITHUB_WORKSPACE}/.deps}
@@ -95,8 +102,12 @@ fi
 # 4. Build nextpnr if requested
 if [[ "${BUILD_NEXTPNR}" == "1" ]]; then
     echo "[4/6] Building nextpnr-himbaechel..."
+    log_memory "before cmake configure"
+    
     mkdir -p "${NEXTPNR_BUILD}"
     pushd "${NEXTPNR_BUILD}" >/dev/null
+    
+    echo "  Running cmake configure..."
     cmake "${NEXTPNR_DIR}" \
         -DARCH=himbaechel \
         -DHIMBAECHEL_UARCH=xilinx \
@@ -104,7 +115,19 @@ if [[ "${BUILD_NEXTPNR}" == "1" ]]; then
         -DBUILD_PYTHON=OFF \
         -DHIMBAECHEL_XILINX_DEVICES="xc7a50t;xc7vx485t" \
         -DHIMBAECHEL_PRJXRAY_DB="${XRAY_DB_PATH}"
+    
+    log_memory "after cmake configure (before build)"
+    
+    echo "  Building nextpnr binary (monitoring memory during xc7vx485t chipdb generation)..."
+    # Monitor memory during build: log every 30 seconds in background
+    (while sleep 30; do log_memory "build progress"; done) &
+    MONITOR_PID=$!
+    
     cmake --build . --target nextpnr-himbaechel --parallel "$(nproc)"
+    
+    kill $MONITOR_PID 2>/dev/null || true
+    log_memory "after cmake build"
+    
     popd >/dev/null
 else
     echo "[4/6] Using existing nextpnr build (set BUILD_NEXTPNR=1 to rebuild)..."
