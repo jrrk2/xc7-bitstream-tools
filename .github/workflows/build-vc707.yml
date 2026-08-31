@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - '.gitmodules'
+      - 'nextpnr'
       - 'examples/vc707-johnson/**'
       - 'scripts/**'
       - 'backends/**'
@@ -16,6 +17,7 @@ on:
       - main
     paths:
       - '.gitmodules'
+      - 'nextpnr'
       - 'examples/vc707-johnson/**'
       - 'scripts/**'
       - 'backends/**'
