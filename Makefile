@@ -1,4 +1,4 @@
-.PHONY: help setup tools nextpnr vc707-johnson sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match clean
+.PHONY: help setup tools nextpnr vc707-johnson sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 DESIGN ?= johnson_sonata
@@ -23,6 +23,17 @@ F2N_BIN ?= $(F2N_DIR)/build/fasm2netlist
 VC707_DEVICE ?= xc7vx485t
 VC707_FAMILY ?= virtex7
 
+# Every example verifies itself: the bitstream's FASM is extracted back to a
+# netlist and proved equivalent to the synthesis it came from.  A build that
+# produces a bitstream nobody has checked is a build that can be quietly wrong,
+# and this is cheap -- under a second for the VC707 Johnson counter.  Set
+# VERIFY=0 to skip, e.g. when bringing up a design whose primitives the tile
+# model does not cover yet.
+VERIFY ?= 1
+VERIFY_DIR ?= .verify
+TILEVERILOG ?= $(F2N_DIR)/build/tileverilog
+LVS_EQUIV ?= $(F2N_DIR)/build/lvs_equiv
+
 help:
 	@printf '%s\n' 'Targets:' \
 	  '  make setup                              Create the local Python environment' \
@@ -34,7 +45,10 @@ help:
 	  '  make fasm2netlist                       Build the FASM-to-netlist extractor' \
 	  '  make lvs                                LVS-check the extraction against the placement' \
 	  '  make z3-prove                           Prove extraction == gold synthesis with Z3' \
-	  '  make sat-match                          Match registers with no placement oracle'
+	  '  make sat-match                          Match registers with no placement oracle' \
+	  '  make verify-extraction V_*=...          Extract a bitstream and prove it equals its synthesis' \
+	  '' \
+	  'Examples verify themselves by default; pass VERIFY=0 to skip that step.'
 
 setup:
 	python3 -m venv .venv
@@ -58,6 +72,12 @@ vc707-johnson: tools nextpnr
 	$(NEXTPNR_BIN) --device $(VC707_PART) -o xdc=$(VC707_DIR)/top.xdc --json $(VC707_DIR)/johnson.json \
 		-o fasm=$(VC707_DIR)/johnson.fasm -o placement=$(VC707_DIR)/johnson_placement.json --router router2
 	$(MAKE) vc707 VC707_FASM=$(VC707_DIR)/johnson.fasm PRJXRAY_DB=$(PRJXRAY_DB) VC707_OUT=$(VC707_OUT)
+ifeq ($(VERIFY),1)
+	$(MAKE) verify-extraction V_NAME=vc707-johnson V_FASM=$(VC707_DIR)/johnson.fasm \
+		V_JSON=$(VC707_DIR)/johnson.json V_PLACE=$(VC707_DIR)/johnson_placement.json \
+		V_XDC=$(VC707_DIR)/top.xdc V_TOP=top V_PART=$(VC707_PART) \
+		V_DEVICE=$(VC707_DEVICE) V_FAMILY=$(VC707_FAMILY) PRJXRAY_DB=$(PRJXRAY_DB)
+endif
 
 sonata:
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
@@ -110,7 +130,40 @@ sat-match: fasm2netlist
 		--xc7-tools-dir $(CURDIR) \
 		--family $(VC707_FAMILY) --device $(VC707_DEVICE) --part $(VC707_PART)
 
+# Extract a bitstream's FASM back to a netlist and prove it equivalent to the
+# synthesis it was built from.  Nothing here reads a placement or a routed dump
+# for the extraction itself -- the placement is used only to relate the gold
+# netlist's register names to the sites the extraction names its cells after,
+# and the XDC only to label the pads.
+#
+#   V_NAME   label for the working directory
+#   V_FASM   the design's FASM          V_JSON   its gold synthesis
+#   V_PLACE  the placement dump         V_XDC    its constraints
+#   V_TOP    top module in V_JSON       V_PART / V_DEVICE / V_FAMILY
+#
+# Two extractions are written: fabric.v names every net after the silicon it
+# was read out of -- that is the one the proof runs on, so that the register
+# correspondence has to come from the placement rather than from a coincidence
+# of names -- and fabric_named.v carries the design's own names, for reading.
+verify-extraction: fasm2netlist
+	@test -n "$(V_FASM)" || { echo "verify-extraction needs V_FASM=..."; exit 2; }
+	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "PRJXRAY_DB must name a Project X-Ray database checkout"; exit 2; }
+	@command -v "$(YOSYS)" >/dev/null || { echo "YOSYS not found: $(YOSYS)"; exit 2; }
+	@mkdir -p $(VERIFY_DIR)/$(V_NAME)
+	$(TILEVERILOG) --fasm $(V_FASM) --db $(PRJXRAY_DB)/$(V_FAMILY) --device $(V_DEVICE) \
+		--xdc $(V_XDC) --part $(V_PART) \
+		--out $(VERIFY_DIR)/$(V_NAME)/fabric.v --model-out $(VERIFY_DIR)/$(V_NAME)/tile_model.v
+	$(TILEVERILOG) --fasm $(V_FASM) --db $(PRJXRAY_DB)/$(V_FAMILY) --device $(V_DEVICE) \
+		--xdc $(V_XDC) --part $(V_PART) --placement $(V_PLACE) --gold-json $(V_JSON) \
+		--out $(VERIFY_DIR)/$(V_NAME)/fabric_named.v
+	$(YOSYS) -q -p "read_json $(V_JSON); hierarchy -top $(V_TOP); splitnets; \
+		select $(V_TOP); write_verilog -noattr -selected $(VERIFY_DIR)/$(V_NAME)/gold.v"
+	$(LVS_EQUIV) --gold $(VERIFY_DIR)/$(V_NAME)/gold.v --gold-top $(V_TOP) \
+		--gate $(VERIFY_DIR)/$(V_NAME)/fabric.v --gate-top fabric \
+		--placement $(V_PLACE) --gold-json $(V_JSON) \
+		--db $(PRJXRAY_DB)/$(V_FAMILY) --device $(V_DEVICE) --quiet
+
 clean:
-	rm -rf .validation
+	rm -rf .validation $(VERIFY_DIR)
 	rm -f *.bit *.frames *.uf2
 	rm -f $(VC707_DIR)/johnson.json $(VC707_DIR)/johnson.fasm

@@ -47,3 +47,6 @@ examples/vc707-johnson/johnson.fasm
 .DS_Store
 .AppleDouble
 .LSOverride.chipdb/
+
+# self-verification working files (regenerable)
+.verify/
