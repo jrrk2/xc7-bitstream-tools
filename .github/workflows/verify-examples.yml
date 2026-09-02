@@ -1,0 +1,142 @@
+name: Verify examples
+
+# Each design is its own matrix job, so GitHub shows one check per design and
+# a failure names the design that failed rather than "the sweep".  The matrix
+# comes from scripts/verify_examples.sh --list, so the list of designs lives
+# in one place instead of drifting between the script and this file.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.gitmodules'
+      - 'nextpnr'
+      - 'fasm2netlist'
+      - 'examples/**'
+      - 'scripts/**'
+      - 'Makefile'
+      - '.github/workflows/verify-examples.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.gitmodules'
+      - 'nextpnr'
+      - 'fasm2netlist'
+      - 'examples/**'
+      - 'scripts/**'
+      - 'Makefile'
+      - '.github/workflows/verify-examples.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  designs:
+    name: Enumerate designs
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.list.outputs.designs }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        run: echo "designs=$(bash scripts/verify_examples.sh --list)" >> "$GITHUB_OUTPUT"
+
+  tools:
+    name: Build tools
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Get nextpnr commit hash for cache key
+        id: nextpnr-hash
+        run: echo "hash=$(cd nextpnr && git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Generating a chipdb needs far more memory than a runner has to spare,
+      # so the intermediate .bba is cached against the nextpnr commit that
+      # produced it.  A miss regenerates; a hit skips straight to bbasm.
+      - name: Cache chipdb intermediates
+        uses: actions/cache@v4
+        with:
+          path: build/himbaechel/uarch/xilinx/chipdb-*.bba
+          key: chipdb-${{ steps.nextpnr-hash.outputs.hash }}
+          restore-keys: chipdb-
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake git libeigen3-dev \
+            libboost-all-dev python3 python3-venv libz3-dev
+
+      - name: Fetch the Project X-Ray database
+        run: git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db
+
+      - name: Build nextpnr-himbaechel
+        run: |
+          cmake -S nextpnr -B build -DARCH=himbaechel -DHIMBAECHEL_UARCH=xilinx \
+            -DBUILD_GUI=OFF -DBUILD_PYTHON=OFF \
+            -DHIMBAECHEL_XILINX_DEVICES="xc7a50t;xc7vx485t" \
+            -DHIMBAECHEL_PRJXRAY_DB="$PWD/.deps/prjxray-db"
+          cmake --build build --target nextpnr-himbaechel --parallel "$(nproc)"
+
+      - name: Build the extractor and the equivalence checker
+        run: |
+          cmake -S fasm2netlist -B fasm2netlist/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build fasm2netlist/build --parallel "$(nproc)"
+
+      - name: Upload tools
+        uses: actions/upload-artifact@v4
+        with:
+          name: tools
+          path: |
+            build/nextpnr-himbaechel
+            build/himbaechel/uarch/xilinx/chipdb-*.bin
+            fasm2netlist/build/tileverilog
+            fasm2netlist/build/lvs_equiv
+          retention-days: 1
+
+  verify:
+    name: ${{ matrix.design }}
+    needs: [designs, tools]
+    runs-on: ubuntu-latest
+    strategy:
+      # One design failing says nothing about the others, and the whole point
+      # of the matrix is to see which ones are affected.
+      fail-fast: false
+      matrix:
+        design: ${{ fromJSON(needs.designs.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yosys libz3-4
+
+      - name: Fetch the Project X-Ray database
+        run: git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: tools
+
+      - name: Restore the executable bit
+        run: chmod +x build/nextpnr-himbaechel fasm2netlist/build/tileverilog fasm2netlist/build/lvs_equiv
+
+      - name: Build the bitstream and prove the extraction equals it
+        env:
+          PRJXRAY_DB: .deps/prjxray-db
+          YOSYS: yosys
+        run: bash scripts/verify_examples.sh "${{ matrix.design }}"
+
+      - name: Upload the extraction
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: extraction-${{ matrix.design }}
+          path: .verify/examples/${{ matrix.design }}
+          retention-days: 7

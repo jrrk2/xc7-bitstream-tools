@@ -36,27 +36,67 @@ DESIGNS=(
 # cannot be tried.
 NOT_YET=()
 
+# --list prints the design names as JSON, so a CI matrix can be generated from
+# this table rather than repeating it in a workflow file where the two would
+# drift apart.  Naming designs on the command line runs only those, which is
+# what each matrix job does.
+if [ "${1:-}" = "--list" ]; then
+    printf '['
+    sep=""
+    for row in "${DESIGNS[@]}"; do
+        printf '%s"%s"' "$sep" "${row%%|*}"; sep=", "
+    done
+    for row in ${NOT_YET[@]+"${NOT_YET[@]}"}; do
+        printf '%s"%s"' "$sep" "${row%%|*}"; sep=", "
+    done
+    printf ']\n'
+    exit 0
+fi
+
+WANTED=("$@")
+wanted() {
+    [ ${#WANTED[@]} -eq 0 ] && return 0
+    for w in "${WANTED[@]}"; do [ "$w" = "$1" ] && return 0; done
+    return 1
+}
+
+# GitHub reads these; a plain terminal ignores them.
+annotate() {   # level, title, message
+    [ -n "${GITHUB_ACTIONS:-}" ] || return 0
+    printf '::%s title=%s::%s\n' "$1" "$2" "$3"
+}
+summary() {
+    [ -n "${GITHUB_STEP_SUMMARY:-}" ] || return 0
+    printf '%s\n' "$1" >> "$GITHUB_STEP_SUMMARY"
+}
+
 mkdir -p "$OUT"
+summary "| design | result | proved | differ |"
+summary "|---|---|---|---|"
 fail=0 pass=0
 printf '%-18s %10s %8s %8s   %s\n' DESIGN RESULT PROVED DIFFER NOTE
 printf '%.0s-' {1..70}; echo
 
 for row in "${DESIGNS[@]}"; do
     IFS='|' read -r name srcs top xdc part device family <<< "$row"
+    wanted "$name" || continue
     d="$OUT/$name"; mkdir -p "$d"
     log="$d/build.log"
 
     if ! "$YOSYS" -q -p "synth_xilinx -flatten -abc9 -nobram -arch xc7 -top $top; write_json $d/gold.json" \
             $srcs >"$log" 2>&1; then
-        printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "synthesis failed, see $log"; fail=$((fail+1)); continue
+        printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "synthesis failed, see $log"
+        annotate error "$name" "synthesis failed"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
     fi
     if ! "$NEXTPNR_BIN" --device "$part" -o xdc="$xdc" --json "$d/gold.json" \
             -o fasm="$d/design.fasm" -o placement="$d/placement.json" --router router2 >>"$log" 2>&1; then
-        printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "place and route failed, see $log"; fail=$((fail+1)); continue
+        printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "place and route failed, see $log"
+        annotate error "$name" "place and route failed"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
     fi
     if ! "$TILEVERILOG" --fasm "$d/design.fasm" --db "$PRJXRAY_DB/$family" --device "$device" \
             --xdc "$xdc" --part "$part" --out "$d/fabric.v" --model-out "$d/tile_model.v" >>"$log" 2>&1; then
-        printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "extraction failed, see $log"; fail=$((fail+1)); continue
+        printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "extraction failed, see $log"
+        annotate error "$name" "extraction from the bitstream failed"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
     fi
     # the design's own names, for reading when a result needs explaining
     "$TILEVERILOG" --fasm "$d/design.fasm" --db "$PRJXRAY_DB/$family" --device "$device" \
@@ -71,15 +111,22 @@ for row in "${DESIGNS[@]}"; do
     proved=$(echo "$res" | awk '{print $1}')
     differ=$(echo "$res" | awk '{print $3}')
     if [ "${differ:-1}" = 0 ] && [ "${proved:-0}" -gt 0 ]; then
-        printf '%-18s %10s %8s %8s\n' "$name" PROVED "$proved" "$differ"; pass=$((pass+1))
+        printf '%-18s %10s %8s %8s\n' "$name" PROVED "$proved" "$differ"
+        annotate notice "$name" "$proved proved, 0 differ"
+        summary "| $name | PROVED | $proved | 0 |"; pass=$((pass+1))
     else
-        printf '%-18s %10s %8s %8s   %s\n' "$name" DIFFER "${proved:--}" "${differ:--}" "see $log"; fail=$((fail+1))
+        printf '%-18s %10s %8s %8s   %s\n' "$name" DIFFER "${proved:--}" "${differ:--}" "see $log"
+        annotate error "$name" "the extracted netlist is not equivalent to the synthesis: ${differ:-?} differ"
+        summary "| $name | **DIFFER** | ${proved:--} | ${differ:--} |"; fail=$((fail+1))
     fi
 done
 
 for row in ${NOT_YET[@]+"${NOT_YET[@]}"}; do
     IFS='|' read -r name why <<< "$row"
+    wanted "$name" || continue
     printf '%-18s %10s %8s %8s   %s\n' "$name" skipped - - "$why"
+    annotate warning "$name" "$why"
+    summary "| $name | skipped | - | - |"
 done
 
 echo

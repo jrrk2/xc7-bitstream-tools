@@ -39,6 +39,7 @@ ARTY_OUT ?= blinky_arty.bit
 # model does not cover yet.
 VERIFY ?= 1
 VERIFY_DIR ?= .verify
+DESIGNS ?=
 TILEVERILOG ?= $(F2N_DIR)/build/tileverilog
 LVS_EQUIV ?= $(F2N_DIR)/build/lvs_equiv
 
@@ -57,6 +58,7 @@ help:
 	  '  make sat-match                          Match registers with no placement oracle' \
 	  '  make verify-extraction V_*=...          Extract a bitstream and prove it equals its synthesis' \
 	  '  make verify-examples PRJXRAY_DB=...     Prove every eligible nextpnr example, and say what is not' \
+	  '  make verify-examples DESIGNS="a b"      ... or just the named ones, as the CI matrix does' \
 	  '' \
 	  'Examples verify themselves by default; pass VERIFY=0 to skip that step.'
 
@@ -114,7 +116,7 @@ verify-examples: fasm2netlist nextpnr
 	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "PRJXRAY_DB must name a Project X-Ray database checkout"; exit 2; }
 	YOSYS=$(YOSYS) NEXTPNR_BIN=$(NEXTPNR_BIN) PRJXRAY_DB=$(PRJXRAY_DB) \
 		TILEVERILOG=$(TILEVERILOG) LVS_EQUIV=$(LVS_EQUIV) OUT=$(VERIFY_DIR)/examples \
-		scripts/verify_examples.sh
+		scripts/verify_examples.sh $(DESIGNS)
 
 sonata:
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
