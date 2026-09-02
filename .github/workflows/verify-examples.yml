@@ -56,13 +56,32 @@ jobs:
 
       # Generating a chipdb needs far more memory than a runner has to spare,
       # so the intermediate .bba is cached against the nextpnr commit that
-      # produced it.  A miss regenerates; a hit skips straight to bbasm.
-      - name: Cache chipdb intermediates
-        uses: actions/cache@v4
+      # produced it.  cmake makes the .bba depend only on xilinx_gen.py and
+      # constids.inc, so one already on disk is used as-is and the expensive
+      # generator never runs.
+      #
+      # One cache per device: a rebuild of either would otherwise discard
+      # both, and together they are 468 MB against a 10 GB repository budget.
+      #
+      # No restore-keys.  A prefix match would hand back a .bba built from a
+      # different nextpnr commit, and whether cmake regenerates then rests on
+      # file timestamps surviving a cache restore, which is not something to
+      # rely on -- the prjxray database is not a dependency at all, so a stale
+      # .bba can outlive a database change indefinitely.  An exact-key miss
+      # rebuilds, which is slow and never wrong.
+      - name: Restore xc7a50t chipdb
+        id: cache-a50t
+        uses: actions/cache/restore@v4
         with:
-          path: build/himbaechel/uarch/xilinx/chipdb-*.bba
-          key: chipdb-${{ steps.nextpnr-hash.outputs.hash }}
-          restore-keys: chipdb-
+          path: build/himbaechel/uarch/xilinx/chipdb-xc7a50t.bba
+          key: chipdb-xc7a50t-${{ steps.nextpnr-hash.outputs.hash }}
+
+      - name: Restore xc7vx485t chipdb
+        id: cache-vx485t
+        uses: actions/cache/restore@v4
+        with:
+          path: build/himbaechel/uarch/xilinx/chipdb-xc7vx485t.bba
+          key: chipdb-xc7vx485t-${{ steps.nextpnr-hash.outputs.hash }}
 
       - name: Install build dependencies
         run: |
@@ -80,6 +99,25 @@ jobs:
             -DHIMBAECHEL_XILINX_DEVICES="xc7a50t;xc7vx485t" \
             -DHIMBAECHEL_PRJXRAY_DB="$PWD/.deps/prjxray-db"
           cmake --build build --target nextpnr-himbaechel --parallel "$(nproc)"
+
+      # Saved separately from the restore, and unconditionally, because
+      # actions/cache only saves when the job succeeds -- and a job that ran
+      # out of memory on the second chipdb is exactly the one whose first
+      # chipdb is worth keeping.  Without this the expensive case is the one
+      # that never gets cheaper.
+      - name: Save xc7a50t chipdb
+        if: always() && steps.cache-a50t.outputs.cache-hit != 'true' && hashFiles('build/himbaechel/uarch/xilinx/chipdb-xc7a50t.bba') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: build/himbaechel/uarch/xilinx/chipdb-xc7a50t.bba
+          key: chipdb-xc7a50t-${{ steps.nextpnr-hash.outputs.hash }}
+
+      - name: Save xc7vx485t chipdb
+        if: always() && steps.cache-vx485t.outputs.cache-hit != 'true' && hashFiles('build/himbaechel/uarch/xilinx/chipdb-xc7vx485t.bba') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: build/himbaechel/uarch/xilinx/chipdb-xc7vx485t.bba
+          key: chipdb-xc7vx485t-${{ steps.nextpnr-hash.outputs.hash }}
 
       - name: Build the extractor and the equivalence checker
         run: |
