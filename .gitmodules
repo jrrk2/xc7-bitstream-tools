@@ -7,3 +7,6 @@
 [submodule "bit2verilog"]
 	path = bit2verilog
 	url = https://github.com/jrrk2/bit2verilog.git
+[submodule "fasm2netlist"]
+	path = fasm2netlist
+	url = https://github.com/jrrk2/fasm2netlist.git

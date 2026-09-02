@@ -47,3 +47,9 @@ examples/vc707-johnson/johnson.fasm
 .DS_Store
 .AppleDouble
 .LSOverride.chipdb/
+
+# self-verification working files (regenerable)
+.verify/
+examples/arty-blinky/blinky.json
+examples/arty-blinky/blinky.fasm
+examples/arty-blinky/blinky_placement.json
