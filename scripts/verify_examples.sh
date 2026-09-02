@@ -28,12 +28,13 @@ DESIGNS=(
   "blinky-sonata|$EXAMPLES/sonata/blinky_sonata.v|blinky_sonata|$EXAMPLES/sonata/blinky_sonata.xdc|xc7a50tcsg324-1|xc7a50t|artix7"
   "arty-blinky|examples/arty-blinky/blinky.v|blinky|examples/arty-blinky/blinky.xdc|xc7a35tcsg324-1|xc7a50t|artix7"
   "vc707-hp-diffio|$EXAMPLES/vc707-hp-diffio/top.v|top|$EXAMPLES/vc707-hp-diffio/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7"
+  "vc707-idelay|$EXAMPLES/vc707-idelay/top.v|top|$EXAMPLES/vc707-idelay/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7"
 )
 
-# name | what the tile model would have to learn first
-NOT_YET=(
-  "vc707-idelay|IDELAYE2: a delay is not a boolean function, so equivalence needs a decision first"
-)
+# name | what the tile model would have to learn first.  Empty is the goal, not
+# the end of the story: a design here is one nobody has tried, not one that
+# cannot be tried.
+NOT_YET=()
 
 mkdir -p "$OUT"
 fail=0 pass=0
@@ -76,7 +77,7 @@ for row in "${DESIGNS[@]}"; do
     fi
 done
 
-for row in "${NOT_YET[@]}"; do
+for row in ${NOT_YET[@]+"${NOT_YET[@]}"}; do
     IFS='|' read -r name why <<< "$row"
     printf '%-18s %10s %8s %8s   %s\n' "$name" skipped - - "$why"
 done
