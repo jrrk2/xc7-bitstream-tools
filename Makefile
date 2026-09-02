@@ -1,4 +1,4 @@
-.PHONY: help setup tools nextpnr vc707-johnson sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: help setup tools nextpnr vc707-johnson arty-blinky sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 DESIGN ?= johnson_sonata
@@ -22,6 +22,14 @@ F2N_DIR ?= fasm2netlist
 F2N_BIN ?= $(F2N_DIR)/build/fasm2netlist
 VC707_DEVICE ?= xc7vx485t
 VC707_FAMILY ?= virtex7
+# The Arty A7-35: the smaller bin of the same die as the xc7a50t, so that is
+# the chipdb nextpnr uses and the grid the database is keyed by, while the
+# package pins come from the -35 part.
+ARTY_DIR ?= examples/arty-blinky
+ARTY_PART ?= xc7a35tcsg324-1
+ARTY_DEVICE ?= xc7a50t
+ARTY_FAMILY ?= artix7
+ARTY_OUT ?= blinky_arty.bit
 
 # Every example verifies itself: the bitstream's FASM is extracted back to a
 # netlist and proved equivalent to the synthesis it came from.  A build that
@@ -39,6 +47,7 @@ help:
 	  '  make setup                              Create the local Python environment' \
 	  '  make tools                              Build Project X-Ray conversion tools' \
 	  '  make vc707-johnson PRJXRAY_DB=...        Build VC707 Johnson from source to raw bitstream' \
+	  '  make arty-blinky PRJXRAY_DB=...          Build the Arty A7 blinky (the carry-chain example)' \
 	  '  make sonata FASM=... PRJXRAY_DB=...     Convert an Artix-7 FASM to Sonata UF2' \
 	  '  make vc707 VC707_FASM=... PRJXRAY_DB=... Convert a Virtex-7 FASM to raw bitstream' \
 	  '  make validate-bitstream PART=... BIT=... TESTBENCH=... PRJXRAY_DB=...' \
@@ -77,6 +86,23 @@ ifeq ($(VERIFY),1)
 		V_JSON=$(VC707_DIR)/johnson.json V_PLACE=$(VC707_DIR)/johnson_placement.json \
 		V_XDC=$(VC707_DIR)/top.xdc V_TOP=top V_PART=$(VC707_PART) \
 		V_DEVICE=$(VC707_DEVICE) V_FAMILY=$(VC707_FAMILY) PRJXRAY_DB=$(PRJXRAY_DB)
+endif
+
+# A counter and nothing else -- no LUT logic at all, seven carry cells and an
+# inverter.  Small, but the only example here that exercises the carry chain,
+# which is a part of the fabric a design without one cannot check at all.
+arty-blinky: tools nextpnr
+	@command -v "$(YOSYS)" >/dev/null || { echo "YOSYS not found: $(YOSYS)"; exit 2; }
+	cd $(ARTY_DIR) && $(YOSYS) -p 'synth_xilinx -flatten -abc9 -nobram -arch xc7 -top blinky; write_json blinky.json' blinky.v
+	$(NEXTPNR_BIN) --device $(ARTY_PART) -o xdc=$(ARTY_DIR)/blinky.xdc --json $(ARTY_DIR)/blinky.json \
+		-o fasm=$(ARTY_DIR)/blinky.fasm -o placement=$(ARTY_DIR)/blinky_placement.json --router router2
+	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 \
+		--part $(ARTY_PART) --db $(PRJXRAY_DB) --fasm $(ARTY_DIR)/blinky.fasm --output $(ARTY_OUT)
+ifeq ($(VERIFY),1)
+	$(MAKE) verify-extraction V_NAME=arty-blinky V_FASM=$(ARTY_DIR)/blinky.fasm \
+		V_JSON=$(ARTY_DIR)/blinky.json V_PLACE=$(ARTY_DIR)/blinky_placement.json \
+		V_XDC=$(ARTY_DIR)/blinky.xdc V_TOP=blinky V_PART=$(ARTY_PART) \
+		V_DEVICE=$(ARTY_DEVICE) V_FAMILY=$(ARTY_FAMILY) PRJXRAY_DB=$(PRJXRAY_DB)
 endif
 
 sonata:

@@ -50,3 +50,6 @@ examples/vc707-johnson/johnson.fasm
 
 # self-verification working files (regenerable)
 .verify/
+examples/arty-blinky/blinky.json
+examples/arty-blinky/blinky.fasm
+examples/arty-blinky/blinky_placement.json
