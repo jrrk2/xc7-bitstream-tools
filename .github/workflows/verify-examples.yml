@@ -161,10 +161,17 @@ jobs:
         with:
           submodules: recursive
 
+      # nextpnr is built in another job and only run here, so this job needs
+      # the libraries it was linked against even though it compiles nothing:
+      # boost's program_options, iostreams and thread, plus z3 for the
+      # equivalence checker.  The -dev metapackages pull whichever runtime
+      # version the image carries, rather than naming 1.83 and breaking on the
+      # day the image moves.
       - name: Install runtime dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y yosys libz3-4
+          sudo apt-get install -y yosys libz3-4 \
+            libboost-program-options-dev libboost-iostreams-dev libboost-thread-dev
 
       - name: Fetch the Project X-Ray database
         run: git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db
@@ -177,14 +184,26 @@ jobs:
         run: chmod +x build/nextpnr-himbaechel fasm2netlist/build/tileverilog fasm2netlist/build/lvs_equiv
 
       # Fail here, with a name that says what is wrong, rather than letting a
-      # missing chipdb surface as "place and route failed" a step later.
-      - name: Check the tools arrived intact
+      # missing chipdb or an unloadable library surface as "place and route
+      # failed" a step later.  Each binary is RUN, not merely tested for the
+      # executable bit: a binary whose shared libraries are absent is still
+      # executable and still cannot start, which is exactly how a missing
+      # boost went unnoticed until it looked like a routing failure.
+      - name: Check the tools arrived intact and can run
         run: |
-          test -x build/nextpnr-himbaechel
-          test -x fasm2netlist/build/tileverilog
-          test -x fasm2netlist/build/lvs_equiv
+          set -e
           test -s build/share/himbaechel/xilinx/chipdb-xc7a50t.bin
           test -s build/share/himbaechel/xilinx/chipdb-xc7vx485t.bin
+          build/nextpnr-himbaechel --version
+          for t in fasm2netlist/build/tileverilog fasm2netlist/build/lvs_equiv; do
+              # 126/127 mean "could not execute" -- anything else means it ran
+              # and printed its usage, which is all this needs to establish.
+              # The status has to be captured, not tested after `|| true`,
+              # which would reset it and make this check unable to fail.
+              rc=0
+              "$t" --help >/dev/null 2>&1 || rc=$?
+              case $rc in 126|127) echo "$t cannot run"; exit 1 ;; esac
+          done
 
       - name: Build the bitstream and prove the extraction equals it
         env:
