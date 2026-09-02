@@ -1,4 +1,4 @@
-.PHONY: help setup tools nextpnr vc707-johnson arty-blinky sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: help setup tools nextpnr vc707-johnson arty-blinky verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 DESIGN ?= johnson_sonata
@@ -56,6 +56,7 @@ help:
 	  '  make z3-prove                           Prove extraction == gold synthesis with Z3' \
 	  '  make sat-match                          Match registers with no placement oracle' \
 	  '  make verify-extraction V_*=...          Extract a bitstream and prove it equals its synthesis' \
+	  '  make verify-examples PRJXRAY_DB=...     Prove every eligible nextpnr example, and say what is not' \
 	  '' \
 	  'Examples verify themselves by default; pass VERIFY=0 to skip that step.'
 
@@ -104,6 +105,16 @@ ifeq ($(VERIFY),1)
 		V_XDC=$(ARTY_DIR)/blinky.xdc V_TOP=blinky V_PART=$(ARTY_PART) \
 		V_DEVICE=$(ARTY_DEVICE) V_FAMILY=$(ARTY_FAMILY) PRJXRAY_DB=$(PRJXRAY_DB)
 endif
+
+# The whole sweep: every example nextpnr ships that the tile model covers,
+# built from source and proved against its own bitstream.  The ones it does
+# not cover are printed with the reason rather than left out.
+verify-examples: fasm2netlist nextpnr
+	@command -v "$(YOSYS)" >/dev/null || { echo "YOSYS not found: $(YOSYS)"; exit 2; }
+	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "PRJXRAY_DB must name a Project X-Ray database checkout"; exit 2; }
+	YOSYS=$(YOSYS) NEXTPNR_BIN=$(NEXTPNR_BIN) PRJXRAY_DB=$(PRJXRAY_DB) \
+		TILEVERILOG=$(TILEVERILOG) LVS_EQUIV=$(LVS_EQUIV) OUT=$(VERIFY_DIR)/examples \
+		scripts/verify_examples.sh
 
 sonata:
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
