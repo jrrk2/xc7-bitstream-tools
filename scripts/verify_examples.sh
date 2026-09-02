@@ -61,6 +61,15 @@ wanted() {
 }
 
 # GitHub reads these; a plain terminal ignores them.
+# A failure should say why where the reader already is.  Pointing at a log
+# that only exists inside an uploaded artifact means opening the artifact to
+# learn what a single line would have told you.
+tail_log() {
+    echo "--- last 20 lines of $1"
+    tail -20 "$1" | sed 's/^/    /'
+    echo "---"
+}
+
 annotate() {   # level, title, message
     [ -n "${GITHUB_ACTIONS:-}" ] || return 0
     printf '::%s title=%s::%s\n' "$1" "$2" "$3"
@@ -86,17 +95,17 @@ for row in "${DESIGNS[@]}"; do
     if ! "$YOSYS" -q -p "synth_xilinx -flatten -abc9 -nobram -arch xc7 -top $top; write_json $d/gold.json" \
             $srcs >"$log" 2>&1; then
         printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "synthesis failed, see $log"
-        annotate error "$name" "synthesis failed"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
+        annotate error "$name" "synthesis failed"; tail_log "$log"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
     fi
     if ! "$NEXTPNR_BIN" --device "$part" -o xdc="$xdc" --json "$d/gold.json" \
             -o fasm="$d/design.fasm" -o placement="$d/placement.json" --router router2 >>"$log" 2>&1; then
         printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "place and route failed, see $log"
-        annotate error "$name" "place and route failed"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
+        annotate error "$name" "place and route failed"; tail_log "$log"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
     fi
     if ! "$TILEVERILOG" --fasm "$d/design.fasm" --db "$PRJXRAY_DB/$family" --device "$device" \
             --xdc "$xdc" --part "$part" --out "$d/fabric.v" --model-out "$d/tile_model.v" >>"$log" 2>&1; then
         printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "extraction failed, see $log"
-        annotate error "$name" "extraction from the bitstream failed"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
+        annotate error "$name" "extraction from the bitstream failed"; tail_log "$log"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
     fi
     # the design's own names, for reading when a result needs explaining
     "$TILEVERILOG" --fasm "$d/design.fasm" --db "$PRJXRAY_DB/$family" --device "$device" \

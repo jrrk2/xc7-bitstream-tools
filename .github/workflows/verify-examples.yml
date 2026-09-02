@@ -124,13 +124,24 @@ jobs:
           cmake -S fasm2netlist -B fasm2netlist/build -DCMAKE_BUILD_TYPE=Release
           cmake --build fasm2netlist/build --parallel "$(nproc)"
 
+      # The chipdb comes from the share tree, not the build tree.  cmake
+      # writes a copy under himbaechel/uarch/xilinx/ as well, but that is not
+      # the one nextpnr opens: it resolves the path through
+      # proc_share_dirname(), so build/share/himbaechel/xilinx is what a job
+      # that did not build nextpnr itself has to be given.  Handing over the
+      # other copy leaves the binary reporting "Unable to read chipdb" about a
+      # second after it starts.
+      - name: Check the chipdb is where nextpnr will look for it
+        run: test -s build/share/himbaechel/xilinx/chipdb-xc7a50t.bin &&
+             test -s build/share/himbaechel/xilinx/chipdb-xc7vx485t.bin
+
       - name: Upload tools
         uses: actions/upload-artifact@v4
         with:
           name: tools
           path: |
             build/nextpnr-himbaechel
-            build/himbaechel/uarch/xilinx/chipdb-*.bin
+            build/share/himbaechel/xilinx/chipdb-*.bin
             fasm2netlist/build/tileverilog
             fasm2netlist/build/lvs_equiv
           retention-days: 1
@@ -164,6 +175,16 @@ jobs:
 
       - name: Restore the executable bit
         run: chmod +x build/nextpnr-himbaechel fasm2netlist/build/tileverilog fasm2netlist/build/lvs_equiv
+
+      # Fail here, with a name that says what is wrong, rather than letting a
+      # missing chipdb surface as "place and route failed" a step later.
+      - name: Check the tools arrived intact
+        run: |
+          test -x build/nextpnr-himbaechel
+          test -x fasm2netlist/build/tileverilog
+          test -x fasm2netlist/build/lvs_equiv
+          test -s build/share/himbaechel/xilinx/chipdb-xc7a50t.bin
+          test -s build/share/himbaechel/xilinx/chipdb-xc7vx485t.bin
 
       - name: Build the bitstream and prove the extraction equals it
         env:
