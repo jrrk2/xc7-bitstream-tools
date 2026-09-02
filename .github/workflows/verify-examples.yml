@@ -170,9 +170,17 @@ jobs:
       matrix:
         design: ${{ fromJSON(needs.designs.outputs.matrix) }}
     steps:
+      # Not recursive.  This job compiles nothing: all it wants from the
+      # submodules is the example sources under nextpnr, so a recursive
+      # checkout spends most of a minute cloning prjxray and its third_party
+      # -- yosys, abc, antlr4, abseil -- none of which it opens.  Times eight
+      # jobs, on every push.
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+
+      - name: Fetch only the examples this job reads
+        run: git submodule update --init --depth 1 nextpnr
 
       # nextpnr is built in another job and only run here, so this job needs
       # the libraries it was linked against even though it compiles nothing:
