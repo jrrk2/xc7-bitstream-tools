@@ -55,7 +55,7 @@ NOT_YET=()
 #            equiv  it builds and extracts, but the equivalence check differs
 BLOCKED=(
   "vc707-gtrefclk|.|examples/vc707-gtrefclk/top.v|top|examples/vc707-gtrefclk/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|pnr|failed to find IBUFDS_GTE2 site for pad|nextpnr cannot bind a gigabit-transceiver reference clock to its pad, so no GT design (LiteEth SGMII included) can be placed"
-  "vc707-litex|examples/vc707-litex/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|equiv||the tile model does not yet cover CARRY4, block RAM or distributed RAM, so it cannot prove a SoC that uses all three -- fasm2netlist extracts this design exactly (see examples/vc707-litex/README.md)"
+  "vc707-litex|examples/vc707-litex/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|equiv||lvs_equiv reads a column's contents as a constant truth table, so it cannot prove a design whose cones pass through a distributed RAM or a block RAM -- the memory bits would have to become state alongside the flip-flops. fasm2netlist extracts this design exactly (see examples/vc707-litex/README.md)"
 )
 
 # --list prints the design names as JSON, so a CI matrix can be generated from
