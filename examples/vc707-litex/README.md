@@ -49,7 +49,6 @@ extraction models, and integrated block RAM is the more useful test anyway.
 
 ## Building
 
-    ./patches/apply.sh                 # three small patches, see below
     ../../.venv/bin/pip install -e ../../litex-deps/*   # once
 
     PATH=../../.venv/bin:$PATH ../../.venv/bin/python ./vc707_litex.py \
@@ -63,14 +62,18 @@ bitstream with `scripts/convert.py`. `--flow vivado` plus the generated
 
 ## Patches
 
-Kept as patches so the submodule pointers stay on upstream and each change
-stays visible. All three are small and upstreamable:
+Three small changes are needed in the submodules. They are already in the
+commits this repository pins -- `litex-deps/litex` and `litex-deps/liteeth`
+point at forks carrying them, and the nextpnr one is on `openXC7/nextpnr`
+itself -- so a recursive clone gets them and there is nothing to apply. The
+patch files are kept only so the changes can be offered upstream; all three
+are small and none is a workaround.
 
 | patch | why |
 | --- | --- |
 | `litex-bios-configurable-tagline` | the BIOS banner tagline is hard-coded, so two bitstreams built from the same gateware are indistinguishable on the board |
 | `liteeth-k7-1000basex-125mhz-refclk` | `K7_1000BASEX` accepts a `refclk_freq` argument and then hard-codes 200 MHz; the VC707's SGMIICLK is 125 MHz, which the CPLL solves fine |
-| `nextpnr-ibufds-gte2-toplevel-pin` | `pins.cc` lists `IBUFDS_GTE3`/`GTE4` as top-level pin consumers but not `IBUFDS_GTE2`, so a 7-series GT reference clock from a pad is rejected before `pack_io.cc` — which handles it — is ever reached |
+| `nextpnr-ibufds-gte2-toplevel-pin` | `pins.cc` lists `IBUFDS_GTE3`/`GTE4` as top-level pin consumers but not `IBUFDS_GTE2`, so a 7-series GT reference clock from a pad is rejected before `pack_io.cc` -- which handles it -- is ever reached |
 
 ## Ethernet: generated, implements, not yet placeable by nextpnr
 
