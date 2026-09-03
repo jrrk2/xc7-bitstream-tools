@@ -1,0 +1,22 @@
+diff --git a/liteeth/phy/k7_1000basex.py b/liteeth/phy/k7_1000basex.py
+index dde2a41..61cf244 100644
+--- a/liteeth/phy/k7_1000basex.py
++++ b/liteeth/phy/k7_1000basex.py
+@@ -25,7 +25,7 @@ class K7_1000BASEX(LiteXModule):
+     tx_clk_freq = 125e6
+     def __init__(self, refclk_or_clk_pads, data_pads, sys_clk_freq, refclk_freq=200e6, with_csr=True, rx_polarity=0, tx_polarity=0):
+         from liteiclink.transceiver.gtx_7series import GTXChannelPLL, GTXTXInit, GTXRXInit
+-        assert refclk_freq in [200e6]
++        assert refclk_freq in [125e6, 200e6]
+         self.pcs = pcs = PCS(lsb_first=True, eth_tx_clk_freq=self.tx_clk_freq)
+ 
+         self.sink    = pcs.sink
+@@ -71,7 +71,7 @@ class K7_1000BASEX(LiteXModule):
+         rx_data           = Signal(20)
+         rx_reset_done     = Signal()
+ 
+-        pll = GTXChannelPLL(refclk, 200e6, self.linerate)
++        pll = GTXChannelPLL(refclk, refclk_freq, self.linerate)
+         self.submodules.pll = pll
+ 
+         # Work around Python's 255 argument limitation.

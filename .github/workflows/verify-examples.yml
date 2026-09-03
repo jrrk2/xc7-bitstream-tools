@@ -50,39 +50,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Get nextpnr commit hash for cache key
-        id: nextpnr-hash
-        run: echo "hash=$(cd nextpnr && git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      # Generating a chipdb needs far more memory than a runner has to spare,
-      # so the intermediate .bba is cached against the nextpnr commit that
-      # produced it.  cmake makes the .bba depend only on xilinx_gen.py and
-      # constids.inc, so one already on disk is used as-is and the expensive
-      # generator never runs.
-      #
-      # One cache per device: a rebuild of either would otherwise discard
-      # both, and together they are 468 MB against a 10 GB repository budget.
-      #
-      # No restore-keys.  A prefix match would hand back a .bba built from a
-      # different nextpnr commit, and whether cmake regenerates then rests on
-      # file timestamps surviving a cache restore, which is not something to
-      # rely on -- the prjxray database is not a dependency at all, so a stale
-      # .bba can outlive a database change indefinitely.  An exact-key miss
-      # rebuilds, which is slow and never wrong.
-      - name: Restore xc7a50t chipdb
-        id: cache-a50t
-        uses: actions/cache/restore@v4
-        with:
-          path: build/himbaechel/uarch/xilinx/chipdb-xc7a50t.bba
-          key: chipdb-xc7a50t-${{ steps.nextpnr-hash.outputs.hash }}
-
-      - name: Restore xc7vx485t chipdb
-        id: cache-vx485t
-        uses: actions/cache/restore@v4
-        with:
-          path: build/himbaechel/uarch/xilinx/chipdb-xc7vx485t.bba
-          key: chipdb-xc7vx485t-${{ steps.nextpnr-hash.outputs.hash }}
-
       - name: Install build dependencies
         run: |
           sudo apt-get update
@@ -91,6 +58,52 @@ jobs:
 
       - name: Fetch the Project X-Ray database
         run: git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db
+
+      # A chipdb is a function of the generator, the constant ids and the
+      # database it reads.  cmake only knows about the first two, so the
+      # database goes in the key: without it a database change would be
+      # invisible and the cache would serve a chipdb built from the old one.
+      - name: Work out the cache key
+        id: keys
+        run: |
+          echo "nextpnr=$(git -C nextpnr rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "db=$(git -C .deps/prjxray-db rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Generating a chipdb needs far more memory than a runner has to spare,
+      # so the intermediate .bba is cached.  One cache per device: a rebuild
+      # of either would otherwise discard both, and together they are 468 MB
+      # against a 10 GB repository budget.
+      #
+      # No restore-keys.  A prefix match would hand back a .bba built from
+      # different inputs, and the whole point of the key is that a hit means
+      # the file is current.  An exact miss rebuilds: slow, never wrong.
+      - name: Restore xc7a50t chipdb
+        id: cache-a50t
+        uses: actions/cache/restore@v4
+        with:
+          path: build/himbaechel/uarch/xilinx/chipdb-xc7a50t.bba
+          key: chipdb-xc7a50t-${{ steps.keys.outputs.nextpnr }}-${{ steps.keys.outputs.db }}
+
+      - name: Restore xc7vx485t chipdb
+        id: cache-vx485t
+        uses: actions/cache/restore@v4
+        with:
+          path: build/himbaechel/uarch/xilinx/chipdb-xc7vx485t.bba
+          key: chipdb-xc7vx485t-${{ steps.keys.outputs.nextpnr }}-${{ steps.keys.outputs.db }}
+
+      # Without this the cache saves nothing at all.  cmake rebuilds the .bba
+      # when it is older than xilinx_gen.py, and it always is: checkout stamps
+      # every source file with the time it ran, while the cache restores the
+      # .bba with the mtime it had when it was built.  So the generator looks
+      # newer, make regenerates, and the fifteen expensive minutes the cache
+      # exists to avoid are spent on every run regardless of a hit.  The key
+      # pins all three inputs, so a hit does mean current -- say so.
+      - name: Accept the restored chipdbs as current
+        run: |
+          shopt -s nullglob
+          files=(build/himbaechel/uarch/xilinx/chipdb-*.bba)
+          if [ ${#files[@]} -gt 0 ]; then touch "${files[@]}"; echo "marked ${#files[@]} restored chipdb(s) current"
+          else echo "no chipdb restored; both will be generated"; fi
 
       - name: Build nextpnr-himbaechel
         run: |
@@ -110,14 +123,14 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: build/himbaechel/uarch/xilinx/chipdb-xc7a50t.bba
-          key: chipdb-xc7a50t-${{ steps.nextpnr-hash.outputs.hash }}
+          key: chipdb-xc7a50t-${{ steps.keys.outputs.nextpnr }}-${{ steps.keys.outputs.db }}
 
       - name: Save xc7vx485t chipdb
         if: always() && steps.cache-vx485t.outputs.cache-hit != 'true' && hashFiles('build/himbaechel/uarch/xilinx/chipdb-xc7vx485t.bba') != ''
         uses: actions/cache/save@v4
         with:
           path: build/himbaechel/uarch/xilinx/chipdb-xc7vx485t.bba
-          key: chipdb-xc7vx485t-${{ steps.nextpnr-hash.outputs.hash }}
+          key: chipdb-xc7vx485t-${{ steps.keys.outputs.nextpnr }}-${{ steps.keys.outputs.db }}
 
       - name: Build the extractor and the equivalence checker
         run: |
@@ -157,9 +170,17 @@ jobs:
       matrix:
         design: ${{ fromJSON(needs.designs.outputs.matrix) }}
     steps:
+      # Not recursive.  This job compiles nothing: all it wants from the
+      # submodules is the example sources under nextpnr, so a recursive
+      # checkout spends most of a minute cloning prjxray and its third_party
+      # -- yosys, abc, antlr4, abseil -- none of which it opens.  Times eight
+      # jobs, on every push.
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+
+      - name: Fetch only the examples this job reads
+        run: git submodule update --init --depth 1 nextpnr
 
       # nextpnr is built in another job and only run here, so this job needs
       # the libraries it was linked against even though it compiles nothing:

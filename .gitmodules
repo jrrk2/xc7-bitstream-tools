@@ -10,3 +10,24 @@
 [submodule "fasm2netlist"]
 	path = fasm2netlist
 	url = https://github.com/jrrk2/fasm2netlist.git
+[submodule "litex-deps/migen"]
+	path = litex-deps/migen
+	url = https://github.com/m-labs/migen
+[submodule "litex-deps/litex"]
+	path = litex-deps/litex
+	url = https://github.com/jrrk2/litex
+[submodule "litex-deps/litex-boards"]
+	path = litex-deps/litex-boards
+	url = https://github.com/litex-hub/litex-boards
+[submodule "litex-deps/pythondata-cpu-serv"]
+	path = litex-deps/pythondata-cpu-serv
+	url = https://github.com/litex-hub/pythondata-cpu-serv
+[submodule "litex-deps/pythondata-software-picolibc"]
+	path = litex-deps/pythondata-software-picolibc
+	url = https://github.com/litex-hub/pythondata-software-picolibc
+[submodule "litex-deps/pythondata-software-compiler_rt"]
+	path = litex-deps/pythondata-software-compiler_rt
+	url = https://github.com/litex-hub/pythondata-software-compiler_rt
+[submodule "litex-deps/liteeth"]
+	path = litex-deps/liteeth
+	url = https://github.com/jrrk2/liteeth

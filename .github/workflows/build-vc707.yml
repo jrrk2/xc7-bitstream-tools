@@ -38,17 +38,47 @@ jobs:
         with:
           submodules: true
 
-      - name: Get nextpnr commit hash for cache key
-        id: nextpnr-hash
-        run: echo "hash=$(cd nextpnr && git rev-parse HEAD)" >> $GITHUB_OUTPUT
+      # The database is cloned here rather than inside the build script (which
+      # skips it when the directory exists) so its commit can go in the cache
+      # key: a chipdb is a function of the generator and the database both,
+      # and cmake only tracks the generator.
+      - name: Fetch the Project X-Ray database
+        run: git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db
 
-      - name: Cache xc7vx485t chipdb artifacts
-        uses: actions/cache@v4
+      - name: Work out the cache key
+        id: keys
+        run: |
+          echo "nextpnr=$(git -C nextpnr rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "db=$(git -C .deps/prjxray-db rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # The same keys verify-examples.yml uses, so the two workflows share one
+      # chipdb rather than generating it twice per push.  Both devices, since
+      # this build configures both and caching only one left the other being
+      # regenerated every time.
+      - name: Restore xc7a50t chipdb
+        id: cache-a50t
+        uses: actions/cache/restore@v4
+        with:
+          path: build/himbaechel/uarch/xilinx/chipdb-xc7a50t.bba
+          key: chipdb-xc7a50t-${{ steps.keys.outputs.nextpnr }}-${{ steps.keys.outputs.db }}
+
+      - name: Restore xc7vx485t chipdb
+        id: cache-vx485t
+        uses: actions/cache/restore@v4
         with:
           path: build/himbaechel/uarch/xilinx/chipdb-xc7vx485t.bba
-          key: xc7vx485t-chipdb-${{ steps.nextpnr-hash.outputs.hash }}
-          restore-keys: |
-            xc7vx485t-chipdb-
+          key: chipdb-xc7vx485t-${{ steps.keys.outputs.nextpnr }}-${{ steps.keys.outputs.db }}
+
+      # cmake rebuilds a .bba older than xilinx_gen.py, and a restored one
+      # always is: checkout stamps sources with the time it ran, the cache
+      # restores the mtime the file was built with.  So the cache saved
+      # nothing until now -- every run regenerated regardless of a hit.
+      - name: Accept the restored chipdbs as current
+        run: |
+          shopt -s nullglob
+          files=(build/himbaechel/uarch/xilinx/chipdb-*.bba)
+          if [ ${#files[@]} -gt 0 ]; then touch "${files[@]}"; echo "marked ${#files[@]} restored chipdb(s) current"
+          else echo "no chipdb restored; both will be generated"; fi
 
       - name: Install system dependencies
         run: |
@@ -70,6 +100,20 @@ jobs:
           BUILD_NEXTPNR: 1
           YOSYS: yosys
         run: bash .github/ci/build_vc707.sh
+
+      - name: Save xc7a50t chipdb
+        if: always() && steps.cache-a50t.outputs.cache-hit != 'true' && hashFiles('build/himbaechel/uarch/xilinx/chipdb-xc7a50t.bba') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: build/himbaechel/uarch/xilinx/chipdb-xc7a50t.bba
+          key: chipdb-xc7a50t-${{ steps.keys.outputs.nextpnr }}-${{ steps.keys.outputs.db }}
+
+      - name: Save xc7vx485t chipdb
+        if: always() && steps.cache-vx485t.outputs.cache-hit != 'true' && hashFiles('build/himbaechel/uarch/xilinx/chipdb-xc7vx485t.bba') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: build/himbaechel/uarch/xilinx/chipdb-xc7vx485t.bba
+          key: chipdb-xc7vx485t-${{ steps.keys.outputs.nextpnr }}-${{ steps.keys.outputs.db }}
 
       - name: Upload bitstream artifact
         if: success()

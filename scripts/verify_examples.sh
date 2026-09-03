@@ -36,6 +36,17 @@ DESIGNS=(
 # cannot be tried.
 NOT_YET=()
 
+# Designs that SHOULD build but do not, each pinned to the one known failure
+# stopping it.  Unlike NOT_YET these are actually run, every time, because a
+# skipped test measures nothing: the point is to tell the difference between
+# "still blocked on the thing we know about", "blocked on something ELSE now"
+# and "not blocked any more".  A design here is a bug report you can execute.
+#
+# name | sources | top | xdc | part | device | family | error marker | blocker
+BLOCKED=(
+  "vc707-gtrefclk|examples/vc707-gtrefclk/top.v|top|examples/vc707-gtrefclk/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|failed to find IBUFDS_GTE2 site for pad|nextpnr cannot bind a gigabit-transceiver reference clock to its pad, so no GT design (LiteEth SGMII included) can be placed"
+)
+
 # --list prints the design names as JSON, so a CI matrix can be generated from
 # this table rather than repeating it in a workflow file where the two would
 # drift apart.  Naming designs on the command line runs only those, which is
@@ -47,6 +58,9 @@ if [ "${1:-}" = "--list" ]; then
         printf '%s"%s"' "$sep" "${row%%|*}"; sep=", "
     done
     for row in ${NOT_YET[@]+"${NOT_YET[@]}"}; do
+        printf '%s"%s"' "$sep" "${row%%|*}"; sep=", "
+    done
+    for row in ${BLOCKED[@]+"${BLOCKED[@]}"}; do
         printf '%s"%s"' "$sep" "${row%%|*}"; sep=", "
     done
     printf ']\n'
@@ -130,6 +144,41 @@ for row in "${DESIGNS[@]}"; do
     fi
 done
 
+# ---- designs blocked on a known, named bug -------------------------------
+# Three outcomes, deliberately distinguishable at a glance:
+#   blocked    the named error is still what stops it   (expected, not a failure)
+#   UNBLOCKED  it got past that error                   (fixed -- promote it)
+#   FAIL       it broke somewhere else                  (a real regression)
+unblocked=0
+for row in ${BLOCKED[@]+"${BLOCKED[@]}"}; do
+    IFS='|' read -r name srcs top xdc part device family marker why <<< "$row"
+    wanted "$name" || continue
+    d="$OUT/$name"; mkdir -p "$d"
+    log="$d/build.log"; : > "$log"
+
+    if ! "$YOSYS" -q -p "synth_xilinx -flatten -abc9 -arch xc7 -top $top; write_json $d/gold.json" \
+            $srcs >>"$log" 2>&1; then
+        printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "synthesis failed, see $log"
+        annotate error "$name" "synthesis failed"; tail_log "$log"
+        summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
+    fi
+
+    if "$NEXTPNR_BIN" --device "$part" -o xdc="$xdc" --json "$d/gold.json" \
+            -o fasm="$d/design.fasm" -o placement="$d/placement.json" --router router2 >>"$log" 2>&1; then
+        printf '%-18s %10s %8s %8s   %s\n' "$name" UNBLOCKED - - "the known error is gone -- promote this design"
+        annotate notice "$name" "no longer blocked: $why"
+        summary "| $name | **UNBLOCKED** | - | - |"; unblocked=$((unblocked+1))
+    elif grep -qF "$marker" "$log"; then
+        printf '%-18s %10s %8s %8s   %s\n' "$name" blocked - - "$why"
+        annotate warning "$name" "still blocked: $why"
+        summary "| $name | blocked | - | - |"
+    else
+        printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "blocked on something NEW, not the known error; see $log"
+        annotate error "$name" "failed on something other than the known blocker"
+        tail_log "$log"; summary "| $name | FAIL | - | - |"; fail=$((fail+1))
+    fi
+done
+
 for row in ${NOT_YET[@]+"${NOT_YET[@]}"}; do
     IFS='|' read -r name why <<< "$row"
     wanted "$name" || continue
@@ -139,5 +188,10 @@ for row in ${NOT_YET[@]+"${NOT_YET[@]}"}; do
 done
 
 echo
-echo "$pass proved, $fail failed, ${#NOT_YET[@]} not yet eligible"
+echo "$pass proved, $fail failed, ${#NOT_YET[@]} not yet eligible, ${#BLOCKED[@]} blocked on a known bug ($unblocked now unblocked)"
+if [ "${unblocked:-0}" -gt 0 ]; then
+    echo
+    echo "$unblocked design(s) are no longer blocked: move them from BLOCKED to DESIGNS"
+    echo "in scripts/verify_examples.sh so the sweep starts proving them."
+fi
 exit $(( fail > 0 ))
