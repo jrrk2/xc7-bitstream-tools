@@ -5,6 +5,14 @@ DESIGN ?= johnson_sonata
 FASM ?=
 PART ?= xc7a50tcsg324-1
 PRJXRAY_DB ?=
+# cmake's chipdb generator runs with its working directory set to the build
+# tree, so a database path given relative to here does not resolve there --
+# it fails looking for <device>/tilegrid.json.  Make it absolute up front.
+# `override` because the case that actually goes wrong is a relative path
+# passed on the command line, and a command-line value beats a plain
+# assignment.  Empty stays empty, so the "must name a checkout" guards below
+# still fire.
+override PRJXRAY_DB := $(abspath $(PRJXRAY_DB))
 OUT ?= $(DESIGN).uf2
 PYTHON ?= $(abspath .venv/bin/python)
 NEXTPNR_DIR ?= nextpnr
