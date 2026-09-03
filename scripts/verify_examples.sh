@@ -42,9 +42,20 @@ NOT_YET=()
 # "still blocked on the thing we know about", "blocked on something ELSE now"
 # and "not blocked any more".  A design here is a bug report you can execute.
 #
-# name | sources | top | xdc | part | device | family | error marker | blocker
+# name | dir | sources | top | xdc | part | device | family | stage | marker | blocker
+#
+# dir      working directory for synthesis, "." for the repository root.  It
+#          matters for designs whose Verilog $readmemh's its memory contents
+#          from a relative path: run yosys anywhere else and the ROM reads as
+#          zero, SILENTLY.
+# sources  a list, or @file naming one (relative to dir).
+# stage    where the blocker bites, and therefore what "no longer blocked"
+#          would look like:
+#            pnr    place-and-route fails, with `marker` in the log
+#            equiv  it builds and extracts, but the equivalence check differs
 BLOCKED=(
-  "vc707-gtrefclk|examples/vc707-gtrefclk/top.v|top|examples/vc707-gtrefclk/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|failed to find IBUFDS_GTE2 site for pad|nextpnr cannot bind a gigabit-transceiver reference clock to its pad, so no GT design (LiteEth SGMII included) can be placed"
+  "vc707-gtrefclk|.|examples/vc707-gtrefclk/top.v|top|examples/vc707-gtrefclk/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|pnr|failed to find IBUFDS_GTE2 site for pad|nextpnr cannot bind a gigabit-transceiver reference clock to its pad, so no GT design (LiteEth SGMII included) can be placed"
+  "vc707-litex|examples/vc707-litex/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|equiv||the tile model does not yet cover CARRY4, block RAM or distributed RAM, so it cannot prove a SoC that uses all three -- fasm2netlist extracts this design exactly (see examples/vc707-litex/README.md)"
 )
 
 # --list prints the design names as JSON, so a CI matrix can be generated from
@@ -146,36 +157,77 @@ done
 
 # ---- designs blocked on a known, named bug -------------------------------
 # Three outcomes, deliberately distinguishable at a glance:
-#   blocked    the named error is still what stops it   (expected, not a failure)
-#   UNBLOCKED  it got past that error                   (fixed -- promote it)
-#   FAIL       it broke somewhere else                  (a real regression)
+#   blocked    the named blocker is still what stops it   (expected)
+#   UNBLOCKED  it got past that blocker                   (fixed -- promote it)
+#   FAIL       it broke somewhere else                    (a real regression)
 unblocked=0
 for row in ${BLOCKED[@]+"${BLOCKED[@]}"}; do
-    IFS='|' read -r name srcs top xdc part device family marker why <<< "$row"
+    IFS='|' read -r name dir srcs top xdc part device family stage marker why <<< "$row"
     wanted "$name" || continue
-    d="$OUT/$name"; mkdir -p "$d"
+    d="$(cd "$OUT" && pwd)/$name"; mkdir -p "$d"
     log="$d/build.log"; : > "$log"
+    root="$PWD"
 
-    if ! "$YOSYS" -q -p "synth_xilinx -flatten -abc9 -arch xc7 -top $top; write_json $d/gold.json" \
-            $srcs >>"$log" 2>&1; then
+    # @file names a source list, read relative to dir
+    case "$srcs" in
+        @*) srcs="$(grep -v '^#' "$dir/${srcs#@}" | tr '\n' ' ')" ;;
+    esac
+
+    if ! ( cd "$dir" && "$YOSYS" -q -p \
+            "synth_xilinx -flatten -abc9 -arch xc7 -top $top; write_json $d/gold.json" \
+            $srcs ) >>"$log" 2>&1; then
         printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "synthesis failed, see $log"
         annotate error "$name" "synthesis failed"; tail_log "$log"
         summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
     fi
 
-    if "$NEXTPNR_BIN" --device "$part" -o xdc="$xdc" --json "$d/gold.json" \
-            -o fasm="$d/design.fasm" -o placement="$d/placement.json" --router router2 >>"$log" 2>&1; then
-        printf '%-18s %10s %8s %8s   %s\n' "$name" UNBLOCKED - - "the known error is gone -- promote this design"
+    if ! "$NEXTPNR_BIN" --device "$part" -o xdc="$dir/$xdc" --json "$d/gold.json" \
+            -o fasm="$d/design.fasm" -o placement="$d/placement.json" --router router2 \
+            >>"$log" 2>&1; then
+        if [ "$stage" = pnr ] && grep -qF "$marker" "$log"; then
+            printf '%-18s %10s %8s %8s   %s\n' "$name" blocked - - "$why"
+            annotate warning "$name" "still blocked: $why"
+            summary "| $name | blocked | - | - |"
+        else
+            printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "place and route failed unexpectedly, see $log"
+            annotate error "$name" "failed on something other than the known blocker"
+            tail_log "$log"; summary "| $name | FAIL | - | - |"; fail=$((fail+1))
+        fi
+        continue
+    fi
+
+    if [ "$stage" = pnr ]; then
+        printf '%-18s %10s %8s %8s   %s\n' "$name" UNBLOCKED - - "place and route now succeeds -- promote this design"
         annotate notice "$name" "no longer blocked: $why"
-        summary "| $name | **UNBLOCKED** | - | - |"; unblocked=$((unblocked+1))
-    elif grep -qF "$marker" "$log"; then
-        printf '%-18s %10s %8s %8s   %s\n' "$name" blocked - - "$why"
-        annotate warning "$name" "still blocked: $why"
-        summary "| $name | blocked | - | - |"
-    else
-        printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "blocked on something NEW, not the known error; see $log"
-        annotate error "$name" "failed on something other than the known blocker"
+        summary "| $name | **UNBLOCKED** | - | - |"; unblocked=$((unblocked+1)); continue
+    fi
+
+    # stage=equiv: it builds, so take it all the way and see whether it proves
+    if ! "$TILEVERILOG" --fasm "$d/design.fasm" --db "$PRJXRAY_DB/$family" --device "$device" \
+            --xdc "$dir/$xdc" --part "$part" --out "$d/fabric.v" --model-out "$d/tile_model.v" >>"$log" 2>&1; then
+        printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "extraction failed, see $log"
+        annotate error "$name" "extraction from the bitstream failed"
+        tail_log "$log"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
+    fi
+    "$YOSYS" -q -p "read_json $d/gold.json; hierarchy -top $top; splitnets; select $top; \
+        write_verilog -noattr -selected $d/gold.v" >>"$log" 2>&1
+    res=$("$LVS_EQUIV" --gold "$d/gold.v" --gold-top "$top" --gate "$d/fabric.v" --gate-top fabric \
+          --placement "$d/placement.json" --gold-json "$d/gold.json" \
+          --db "$PRJXRAY_DB/$family" --device "$device" --quiet 2>&1 | tee -a "$log" | grep -E '^[0-9]+ proved')
+    proved=$(echo "$res" | awk '{print $1}')
+    differ=$(echo "$res" | awk '{print $3}')
+    if [ -z "${differ:-}" ]; then
+        printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "the equivalence check produced no verdict, see $log"
+        annotate error "$name" "equivalence check produced no verdict"
         tail_log "$log"; summary "| $name | FAIL | - | - |"; fail=$((fail+1))
+    elif [ "$differ" -gt 0 ]; then
+        printf '%-18s %10s %8s %8s   %s\n' "$name" blocked "$proved" "$differ" "$why"
+        annotate warning "$name" "still blocked: $differ differ; $why"
+        summary "| $name | blocked | $proved | $differ |"
+    else
+        printf '%-18s %10s %8s %8s   %s\n' "$name" UNBLOCKED "$proved" 0 "it proves now -- promote this design"
+        annotate notice "$name" "no longer blocked: $why"
+        summary "| $name | **UNBLOCKED** | $proved | 0 |"; unblocked=$((unblocked+1))
     fi
 done
 

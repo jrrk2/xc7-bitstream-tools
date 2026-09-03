@@ -1,4 +1,4 @@
-.PHONY: help setup tools nextpnr vc707-johnson arty-blinky verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: help setup tools nextpnr vc707-johnson arty-blinky vc707-litex vc707-litex-gen verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 DESIGN ?= johnson_sonata
@@ -39,6 +39,21 @@ ARTY_DEVICE ?= xc7a50t
 ARTY_FAMILY ?= artix7
 ARTY_OUT ?= blinky_arty.bit
 
+# The minimal LiteX SoC.  LITEX_GATEWARE holds the generated Verilog, checked
+# in so a build needs neither LiteX nor a RISC-V toolchain; `make vc707-litex-gen`
+# regenerates it and needs both.  yosys must run IN that directory: the design
+# $readmemh's its ROM from a relative path, and from anywhere else the ROM
+# reads as zero without a word of complaint.
+LITEX_DIR      ?= examples/vc707-litex
+LITEX_GATEWARE ?= $(LITEX_DIR)/gateware
+LITEX_TOP      ?= xilinx_vc707
+LITEX_PART     ?= xc7vx485tffg1761-2
+LITEX_DEVICE   ?= xc7vx485t
+LITEX_FAMILY   ?= virtex7
+LITEX_OUT      ?= litex_vc707.bit
+LITEX_FLOW     ?= openXC7
+LITEX_CPU      ?= serv
+
 # Every example verifies itself: the bitstream's FASM is extracted back to a
 # netlist and proved equivalent to the synthesis it came from.  A build that
 # produces a bitstream nobody has checked is a build that can be quietly wrong,
@@ -51,12 +66,52 @@ DESIGNS ?=
 TILEVERILOG ?= $(F2N_DIR)/build/tileverilog
 LVS_EQUIV ?= $(F2N_DIR)/build/lvs_equiv
 
+vc707-litex: fasm2netlist nextpnr
+	@command -v "$(YOSYS)" >/dev/null || { echo "YOSYS not found: $(YOSYS)"; exit 2; }
+	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "PRJXRAY_DB must name a Project X-Ray database checkout"; exit 2; }
+	@test -f "$(LITEX_GATEWARE)/$(LITEX_TOP).v" || { echo "no generated gateware; run 'make vc707-litex-gen' first"; exit 2; }
+	cd $(LITEX_GATEWARE) && $(YOSYS) -q -p \
+		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+		$$(grep -v '^\#' sources.f)
+	$(NEXTPNR_BIN) --device $(LITEX_PART) -o xdc=$(LITEX_GATEWARE)/$(LITEX_TOP).xdc \
+		--json $(LITEX_GATEWARE)/$(LITEX_TOP).json \
+		-o fasm=$(LITEX_GATEWARE)/$(LITEX_TOP).fasm \
+		-o placement=$(LITEX_GATEWARE)/$(LITEX_TOP)_placement.json --router router2
+	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 \
+		--part $(LITEX_PART) --db $(PRJXRAY_DB) --fasm $(LITEX_GATEWARE)/$(LITEX_TOP).fasm --output $(LITEX_OUT)
+	@echo
+	@echo "Extracting it back out, with the families the tile model does not cover yet:"
+	$(F2N_BIN) --fasm $(LITEX_GATEWARE)/$(LITEX_TOP).fasm --db $(PRJXRAY_DB) \
+		--family $(LITEX_FAMILY) --device $(LITEX_DEVICE) --out $(LITEX_GATEWARE)/$(LITEX_TOP)_gates.v
+
+# Regenerate the gateware from the LiteX sources.  Needs the submodules under
+# litex-deps/ installed into the venv, and a RISC-V toolchain for the BIOS.
+# LITEX_FLOW names the flow in the BIOS banner's tagline, which is the only
+# thing distinguishing two bitstreams built from identical gateware.
+vc707-litex-gen:
+	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
+	@$(PYTHON) -c 'import litex, migen, litex_boards' 2>/dev/null || { \
+		echo "LiteX is not installed in $(PYTHON);"; \
+		echo "  $(PYTHON) -m pip install -e litex-deps/migen -e litex-deps/litex \\"; \
+		echo "      -e litex-deps/litex-boards -e litex-deps/pythondata-cpu-serv \\"; \
+		echo "      -e litex-deps/pythondata-software-picolibc -e litex-deps/pythondata-software-compiler_rt"; \
+		exit 2; }
+	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
+		--with-led-chaser --cpu-type $(LITEX_CPU) --integrated-main-ram-size 0x4000 \
+		--flow $(LITEX_FLOW) --no-compile-gateware --build --output-dir $(LITEX_DIR)/build-$(LITEX_FLOW)
+	cp $(LITEX_DIR)/build-$(LITEX_FLOW)/gateware/$(LITEX_TOP).v \
+	   $(LITEX_DIR)/build-$(LITEX_FLOW)/gateware/$(LITEX_TOP).xdc \
+	   $(LITEX_DIR)/build-$(LITEX_FLOW)/gateware/$(LITEX_TOP)_*.init $(LITEX_GATEWARE)/
+	@echo "refreshed $(LITEX_GATEWARE) from the $(LITEX_FLOW) build"
+
 help:
 	@printf '%s\n' 'Targets:' \
 	  '  make setup                              Create the local Python environment' \
 	  '  make tools                              Build Project X-Ray conversion tools' \
 	  '  make vc707-johnson PRJXRAY_DB=...        Build VC707 Johnson from source to raw bitstream' \
 	  '  make arty-blinky PRJXRAY_DB=...          Build the Arty A7 blinky (the carry-chain example)' \
+	  '  make vc707-litex PRJXRAY_DB=...          Build the LiteX SoC from its checked-in gateware, and extract it' \
+	  '  make vc707-litex-gen [LITEX_FLOW=vivado] Regenerate that gateware from the LiteX sources' \
 	  '  make sonata FASM=... PRJXRAY_DB=...     Convert an Artix-7 FASM to Sonata UF2' \
 	  '  make vc707 VC707_FASM=... PRJXRAY_DB=... Convert a Virtex-7 FASM to raw bitstream' \
 	  '  make validate-bitstream PART=... BIT=... TESTBENCH=... PRJXRAY_DB=...' \
