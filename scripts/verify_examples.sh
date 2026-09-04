@@ -136,8 +136,14 @@ for row in "${DESIGNS[@]}"; do
     "$TILEVERILOG" --fasm "$d/design.fasm" --db "$PRJXRAY_DB/$family" --device "$device" \
         --xdc "$xdc" --part "$part" --placement "$d/placement.json" --gold-json "$d/gold.json" \
         --out "$d/fabric_named.v" >>"$log" 2>&1
+    # -norename: without it write_verilog renames every internal object to
+    # _<number>_, inventing names that appear in no other file.  The two
+    # representations of this one design then share nothing for a register
+    # correspondence to be built on, and an unmatched register makes every
+    # cone downstream of it incomparable.  Keeping the names makes the
+    # correspondence an identity instead of a reconstruction.
     "$YOSYS" -q -p "read_json $d/gold.json; hierarchy -top $top; splitnets; select $top; \
-        write_verilog -noattr -selected $d/gold.v" >>"$log" 2>&1
+        write_verilog -noattr -norename -selected $d/gold.v" >>"$log" 2>&1
 
     # Bounded.  How long this proof takes depends on the placement it was
     # given, and the same design has run in seconds and in many minutes; a
@@ -215,8 +221,14 @@ for row in ${BLOCKED[@]+"${BLOCKED[@]}"}; do
         annotate error "$name" "extraction from the bitstream failed"
         tail_log "$log"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
     fi
+    # -norename: without it write_verilog renames every internal object to
+    # _<number>_, inventing names that appear in no other file.  The two
+    # representations of this one design then share nothing for a register
+    # correspondence to be built on, and an unmatched register makes every
+    # cone downstream of it incomparable.  Keeping the names makes the
+    # correspondence an identity instead of a reconstruction.
     "$YOSYS" -q -p "read_json $d/gold.json; hierarchy -top $top; splitnets; select $top; \
-        write_verilog -noattr -selected $d/gold.v" >>"$log" 2>&1
+        write_verilog -noattr -norename -selected $d/gold.v" >>"$log" 2>&1
     # Bounded.  How long this proof takes depends on the placement it was
     # given, and the same design has run in seconds and in many minutes; a
     # sweep that can hang is a sweep nobody will keep in CI.  A timeout is

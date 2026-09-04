@@ -259,7 +259,7 @@ verify-extraction: fasm2netlist
 		--xdc $(V_XDC) --part $(V_PART) --placement $(V_PLACE) --gold-json $(V_JSON) \
 		--out $(VERIFY_DIR)/$(V_NAME)/fabric_named.v
 	$(YOSYS) -q -p "read_json $(V_JSON); hierarchy -top $(V_TOP); splitnets; \
-		select $(V_TOP); write_verilog -noattr -selected $(VERIFY_DIR)/$(V_NAME)/gold.v"
+		select $(V_TOP); write_verilog -noattr -norename -selected $(VERIFY_DIR)/$(V_NAME)/gold.v"
 	$(LVS_EQUIV) --gold $(VERIFY_DIR)/$(V_NAME)/gold.v --gold-top $(V_TOP) \
 		--gate $(VERIFY_DIR)/$(V_NAME)/fabric.v --gate-top fabric \
 		--placement $(V_PLACE) --gold-json $(V_JSON) \
