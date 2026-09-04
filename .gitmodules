@@ -31,3 +31,10 @@
 [submodule "litex-deps/liteeth"]
 	path = litex-deps/liteeth
 	url = https://github.com/jrrk2/liteeth
+[submodule "yosys"]
+	path = yosys
+	url = https://github.com/YosysHQ/yosys
+	# It builds in-tree, so a built checkout is permanently "dirty".  Only the
+	# working tree is ignored: a change to the pinned COMMIT still shows up,
+	# which is the thing that would change the results.
+	ignore = dirty

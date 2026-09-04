@@ -56,3 +56,6 @@ examples/arty-blinky/blinky_placement.json
 
 # LiteX build products (regenerable -- see examples/vc707-litex/README.md)
 examples/vc707-litex/build*/
+
+# the yosys install prefix CI builds (see scripts/pinned_yosys.sh)
+yosys-install/

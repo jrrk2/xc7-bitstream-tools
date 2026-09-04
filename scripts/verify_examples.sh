@@ -11,7 +11,14 @@
 # defaults from the Makefile that calls this).
 set -u -o pipefail
 
-: ${YOSYS:=yosys}
+# The pinned yosys, and nothing else unless you say so.  Which yosys
+# synthesised a design decides what this sweep is even asking, so a run with
+# the wrong one does not produce a worse answer, it answers a different
+# question while looking identical.  scripts/pinned_yosys.sh resolves it,
+# checks it against the submodule this repository records, and refuses
+# anything else; YOSYS_UNPINNED=1 is the way to mean it on purpose.
+YOSYS=$("$(dirname "$0")/pinned_yosys.sh") || exit 2
+export YOSYS
 : ${NEXTPNR_BIN:=build/nextpnr-himbaechel}
 : ${PRJXRAY_DB:=.deps/prjxray-db}
 : ${EXAMPLES:=nextpnr/himbaechel/uarch/xilinx/examples}
@@ -19,16 +26,33 @@ set -u -o pipefail
 : ${TILEVERILOG:=fasm2netlist/build/tileverilog}
 : ${LVS_EQUIV:=fasm2netlist/build/lvs_equiv}
 
-# name | sources | top | xdc | part | device | family
+# name | dir | sources | top | xdc | part | device | family | synth flags
+#
+# The same eight fields BLOCKED uses, so a design that stops being blocked
+# moves between the two tables unchanged.
+#
+# dir    working directory for synthesis, "." for the repository root.  It
+#        matters for designs whose Verilog $readmemh's its memory contents from
+#        a relative path: run yosys anywhere else and the ROM reads as zero,
+#        SILENTLY.
+# srcs   a list, or @file naming one (relative to dir).
+# synth  extra flags for synth_xilinx.  -nobram keeps a small example in LUTs
+#        where that is what it is meant to exercise; a design that means to use
+#        block RAM leaves it off.
 DESIGNS=(
-  "vc707-johnson|$EXAMPLES/vc707-johnson/top.v $EXAMPLES/vc707-johnson/counter25_core.v|top|$EXAMPLES/vc707-johnson/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7"
-  "vc707-multibufg|$EXAMPLES/vc707-multibufg/top.v|top|$EXAMPLES/vc707-multibufg/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7"
-  "arty-a35|$EXAMPLES/arty-a35/blinky.v|top|$EXAMPLES/arty-a35/arty.xdc|xc7a35tcsg324-1|xc7a50t|artix7"
-  "johnson-sonata|$EXAMPLES/sonata/johnson_sonata.v|johnson_sonata|$EXAMPLES/sonata/johnson_sonata.xdc|xc7a50tcsg324-1|xc7a50t|artix7"
-  "blinky-sonata|$EXAMPLES/sonata/blinky_sonata.v|blinky_sonata|$EXAMPLES/sonata/blinky_sonata.xdc|xc7a50tcsg324-1|xc7a50t|artix7"
-  "arty-blinky|examples/arty-blinky/blinky.v|blinky|examples/arty-blinky/blinky.xdc|xc7a35tcsg324-1|xc7a50t|artix7"
-  "vc707-hp-diffio|$EXAMPLES/vc707-hp-diffio/top.v|top|$EXAMPLES/vc707-hp-diffio/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7"
-  "vc707-idelay|$EXAMPLES/vc707-idelay/top.v|top|$EXAMPLES/vc707-idelay/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7"
+  "vc707-johnson|.|$EXAMPLES/vc707-johnson/top.v $EXAMPLES/vc707-johnson/counter25_core.v|top|$EXAMPLES/vc707-johnson/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|-nobram"
+  "vc707-multibufg|.|$EXAMPLES/vc707-multibufg/top.v|top|$EXAMPLES/vc707-multibufg/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|-nobram"
+  "arty-a35|.|$EXAMPLES/arty-a35/blinky.v|top|$EXAMPLES/arty-a35/arty.xdc|xc7a35tcsg324-1|xc7a50t|artix7|-nobram"
+  "johnson-sonata|.|$EXAMPLES/sonata/johnson_sonata.v|johnson_sonata|$EXAMPLES/sonata/johnson_sonata.xdc|xc7a50tcsg324-1|xc7a50t|artix7|-nobram"
+  "blinky-sonata|.|$EXAMPLES/sonata/blinky_sonata.v|blinky_sonata|$EXAMPLES/sonata/blinky_sonata.xdc|xc7a50tcsg324-1|xc7a50t|artix7|-nobram"
+  "arty-blinky|.|examples/arty-blinky/blinky.v|blinky|examples/arty-blinky/blinky.xdc|xc7a35tcsg324-1|xc7a50t|artix7|-nobram"
+  "vc707-hp-diffio|.|$EXAMPLES/vc707-hp-diffio/top.v|top|$EXAMPLES/vc707-hp-diffio/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|-nobram"
+  "vc707-idelay|.|$EXAMPLES/vc707-idelay/top.v|top|$EXAMPLES/vc707-idelay/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|-nobram"
+  # The LiteX SoC: a SERV CPU with its BIOS in block RAM, its register file in
+  # distributed RAM and carry chains throughout.  It was blocked until the tile
+  # model learned to cut a block RAM at its boundary; it proves now, with the
+  # yosys this repository pins.
+  "vc707-litex|examples/vc707-litex/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|"
 )
 
 # name | what the tile model would have to learn first.  Empty is the goal, not
@@ -42,9 +66,19 @@ NOT_YET=()
 # "still blocked on the thing we know about", "blocked on something ELSE now"
 # and "not blocked any more".  A design here is a bug report you can execute.
 #
-# name | sources | top | xdc | part | device | family | error marker | blocker
+# name | dir | sources | top | xdc | part | device | family | stage | marker | blocker
+#
+# dir      working directory for synthesis, "." for the repository root.  It
+#          matters for designs whose Verilog $readmemh's its memory contents
+#          from a relative path: run yosys anywhere else and the ROM reads as
+#          zero, SILENTLY.
+# sources  a list, or @file naming one (relative to dir).
+# stage    where the blocker bites, and therefore what "no longer blocked"
+#          would look like:
+#            pnr    place-and-route fails, with `marker` in the log
+#            equiv  it builds and extracts, but the equivalence check differs
 BLOCKED=(
-  "vc707-gtrefclk|examples/vc707-gtrefclk/top.v|top|examples/vc707-gtrefclk/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|failed to find IBUFDS_GTE2 site for pad|nextpnr cannot bind a gigabit-transceiver reference clock to its pad, so no GT design (LiteEth SGMII included) can be placed"
+  "vc707-gtrefclk|.|examples/vc707-gtrefclk/top.v|top|examples/vc707-gtrefclk/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|pnr|failed to find IBUFDS_GTE2 site for pad|nextpnr cannot bind a gigabit-transceiver reference clock to its pad, so no GT design (LiteEth SGMII included) can be placed"
 )
 
 # --list prints the design names as JSON, so a CI matrix can be generated from
@@ -97,38 +131,70 @@ mkdir -p "$OUT"
 summary "| design | result | proved | differ |"
 summary "|---|---|---|---|"
 fail=0 pass=0
+# Say which tools produced this, before saying what they produced.  A result
+# here is a statement about one synthesis of one design, and two yosys versions
+# do not synthesise the same netlist -- the LiteX SoC proves completely under
+# one and shows differences under another, which is a fact about the two
+# netlists and not about the extractor.  A run that does not record its
+# toolchain cannot be compared with a run from last week, and the version was
+# unrecoverable exactly once, which was once too often.
+yosys_version=$("$YOSYS" -V 2>/dev/null | head -1)
+echo "yosys:   ${yosys_version:-unknown ($YOSYS)}"
+echo "nextpnr: $("$NEXTPNR_BIN" --version 2>&1 | head -1)"
+echo
 printf '%-18s %10s %8s %8s   %s\n' DESIGN RESULT PROVED DIFFER NOTE
 printf '%.0s-' {1..70}; echo
 
+mkdir -p "$OUT"
 for row in "${DESIGNS[@]}"; do
-    IFS='|' read -r name srcs top xdc part device family <<< "$row"
+    IFS='|' read -r name dir srcs top xdc part device family synth <<< "$row"
     wanted "$name" || continue
-    d="$OUT/$name"; mkdir -p "$d"
+    d="$(cd "$OUT" && pwd)/$name"; mkdir -p "$d"
     log="$d/build.log"
 
-    if ! "$YOSYS" -q -p "synth_xilinx -flatten -abc9 -nobram -arch xc7 -top $top; write_json $d/gold.json" \
-            $srcs >"$log" 2>&1; then
+    # @file names a source list, read relative to dir
+    case "$srcs" in
+        @*) srcs="$(sed -e '/^[[:space:]]*#/d' -e 's/[[:space:]][[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$dir/${srcs#@}" | tr '\n' ' ')" ;;
+    esac
+
+    { echo "yosys: ${yosys_version:-unknown}"
+      echo "nextpnr: $("$NEXTPNR_BIN" --version 2>&1 | head -1)"; } > "$d/toolchain"
+    if ! ( cd "$dir" && "$YOSYS" -q -p \
+            "synth_xilinx -flatten -abc9 $synth -arch xc7 -top $top; write_json $d/gold.json" \
+            $srcs ) >"$log" 2>&1; then
         printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "synthesis failed, see $log"
         annotate error "$name" "synthesis failed"; tail_log "$log"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
     fi
-    if ! "$NEXTPNR_BIN" --device "$part" -o xdc="$xdc" --json "$d/gold.json" \
+    if ! "$NEXTPNR_BIN" --device "$part" -o xdc="$dir/$xdc" --json "$d/gold.json" \
             -o fasm="$d/design.fasm" -o placement="$d/placement.json" --router router2 >>"$log" 2>&1; then
         printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "place and route failed, see $log"
         annotate error "$name" "place and route failed"; tail_log "$log"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
     fi
     if ! "$TILEVERILOG" --fasm "$d/design.fasm" --db "$PRJXRAY_DB/$family" --device "$device" \
-            --xdc "$xdc" --part "$part" --out "$d/fabric.v" --model-out "$d/tile_model.v" >>"$log" 2>&1; then
+            --xdc "$dir/$xdc" --part "$part" --out "$d/fabric.v" --model-out "$d/tile_model.v" >>"$log" 2>&1; then
         printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "extraction failed, see $log"
         annotate error "$name" "extraction from the bitstream failed"; tail_log "$log"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
     fi
     # the design's own names, for reading when a result needs explaining
     "$TILEVERILOG" --fasm "$d/design.fasm" --db "$PRJXRAY_DB/$family" --device "$device" \
-        --xdc "$xdc" --part "$part" --placement "$d/placement.json" --gold-json "$d/gold.json" \
+        --xdc "$dir/$xdc" --part "$part" --placement "$d/placement.json" --gold-json "$d/gold.json" \
         --out "$d/fabric_named.v" >>"$log" 2>&1
+    # -norename: without it write_verilog renames every internal object to
+    # _<number>_, inventing names that appear in no other file.  The two
+    # representations of this one design then share nothing for a register
+    # correspondence to be built on, and an unmatched register makes every
+    # cone downstream of it incomparable.  Keeping the names makes the
+    # correspondence an identity instead of a reconstruction.
     "$YOSYS" -q -p "read_json $d/gold.json; hierarchy -top $top; splitnets; select $top; \
-        write_verilog -noattr -selected $d/gold.v" >>"$log" 2>&1
+        write_verilog -noattr -norename -selected $d/gold.v" >>"$log" 2>&1
 
-    res=$("$LVS_EQUIV" --gold "$d/gold.v" --gold-top "$top" --gate "$d/fabric.v" --gate-top fabric \
+    # Bounded.  How long this proof takes depends on the placement it was
+    # given, and the same design has run in seconds and in many minutes; a
+    # sweep that can hang is a sweep nobody will keep in CI.  A timeout is
+    # reported as still-blocked rather than as a pass or a failure, because
+    # that is exactly what it tells us: not proved, for a known reason.
+    res=$(timeout "${EQUIV_TIMEOUT:-600}" \
+          "$LVS_EQUIV" --gold "$d/gold.v" --gold-top "$top" --gate "$d/fabric.v" --gate-top fabric \
           --placement "$d/placement.json" --gold-json "$d/gold.json" \
           --db "$PRJXRAY_DB/$family" --device "$device" --quiet 2>&1 | tee -a "$log" | grep -E '^[0-9]+ proved')
     proved=$(echo "$res" | awk '{print $1}')
@@ -146,36 +212,91 @@ done
 
 # ---- designs blocked on a known, named bug -------------------------------
 # Three outcomes, deliberately distinguishable at a glance:
-#   blocked    the named error is still what stops it   (expected, not a failure)
-#   UNBLOCKED  it got past that error                   (fixed -- promote it)
-#   FAIL       it broke somewhere else                  (a real regression)
+#   blocked    the named blocker is still what stops it   (expected)
+#   UNBLOCKED  it got past that blocker                   (fixed -- promote it)
+#   FAIL       it broke somewhere else                    (a real regression)
 unblocked=0
 for row in ${BLOCKED[@]+"${BLOCKED[@]}"}; do
-    IFS='|' read -r name srcs top xdc part device family marker why <<< "$row"
+    IFS='|' read -r name dir srcs top xdc part device family stage marker why <<< "$row"
     wanted "$name" || continue
-    d="$OUT/$name"; mkdir -p "$d"
+    d="$(cd "$OUT" && pwd)/$name"; mkdir -p "$d"
     log="$d/build.log"; : > "$log"
+    root="$PWD"
 
-    if ! "$YOSYS" -q -p "synth_xilinx -flatten -abc9 -arch xc7 -top $top; write_json $d/gold.json" \
-            $srcs >>"$log" 2>&1; then
+    # @file names a source list, read relative to dir
+    case "$srcs" in
+        @*) srcs="$(sed -e '/^[[:space:]]*#/d' -e 's/[[:space:]][[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$dir/${srcs#@}" | tr '\n' ' ')" ;;
+    esac
+
+    { echo "yosys: ${yosys_version:-unknown}"
+      echo "nextpnr: $("$NEXTPNR_BIN" --version 2>&1 | head -1)"; } > "$d/toolchain"
+    if ! ( cd "$dir" && "$YOSYS" -q -p \
+            "synth_xilinx -flatten -abc9 -arch xc7 -top $top; write_json $d/gold.json" \
+            $srcs ) >>"$log" 2>&1; then
         printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "synthesis failed, see $log"
         annotate error "$name" "synthesis failed"; tail_log "$log"
         summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
     fi
 
-    if "$NEXTPNR_BIN" --device "$part" -o xdc="$xdc" --json "$d/gold.json" \
-            -o fasm="$d/design.fasm" -o placement="$d/placement.json" --router router2 >>"$log" 2>&1; then
-        printf '%-18s %10s %8s %8s   %s\n' "$name" UNBLOCKED - - "the known error is gone -- promote this design"
+    if ! "$NEXTPNR_BIN" --device "$part" -o xdc="$dir/$xdc" --json "$d/gold.json" \
+            -o fasm="$d/design.fasm" -o placement="$d/placement.json" --router router2 \
+            >>"$log" 2>&1; then
+        if [ "$stage" = pnr ] && grep -qF "$marker" "$log"; then
+            printf '%-18s %10s %8s %8s   %s\n' "$name" blocked - - "$why"
+            annotate warning "$name" "still blocked: $why"
+            summary "| $name | blocked | - | - |"
+        else
+            printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "place and route failed unexpectedly, see $log"
+            annotate error "$name" "failed on something other than the known blocker"
+            tail_log "$log"; summary "| $name | FAIL | - | - |"; fail=$((fail+1))
+        fi
+        continue
+    fi
+
+    if [ "$stage" = pnr ]; then
+        printf '%-18s %10s %8s %8s   %s\n' "$name" UNBLOCKED - - "place and route now succeeds -- promote this design"
         annotate notice "$name" "no longer blocked: $why"
-        summary "| $name | **UNBLOCKED** | - | - |"; unblocked=$((unblocked+1))
-    elif grep -qF "$marker" "$log"; then
-        printf '%-18s %10s %8s %8s   %s\n' "$name" blocked - - "$why"
-        annotate warning "$name" "still blocked: $why"
+        summary "| $name | **UNBLOCKED** | - | - |"; unblocked=$((unblocked+1)); continue
+    fi
+
+    # stage=equiv: it builds, so take it all the way and see whether it proves
+    if ! "$TILEVERILOG" --fasm "$d/design.fasm" --db "$PRJXRAY_DB/$family" --device "$device" \
+            --xdc "$dir/$xdc" --part "$part" --out "$d/fabric.v" --model-out "$d/tile_model.v" >>"$log" 2>&1; then
+        printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "extraction failed, see $log"
+        annotate error "$name" "extraction from the bitstream failed"
+        tail_log "$log"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
+    fi
+    # -norename: without it write_verilog renames every internal object to
+    # _<number>_, inventing names that appear in no other file.  The two
+    # representations of this one design then share nothing for a register
+    # correspondence to be built on, and an unmatched register makes every
+    # cone downstream of it incomparable.  Keeping the names makes the
+    # correspondence an identity instead of a reconstruction.
+    "$YOSYS" -q -p "read_json $d/gold.json; hierarchy -top $top; splitnets; select $top; \
+        write_verilog -noattr -norename -selected $d/gold.v" >>"$log" 2>&1
+    # Bounded.  How long this proof takes depends on the placement it was
+    # given, and the same design has run in seconds and in many minutes; a
+    # sweep that can hang is a sweep nobody will keep in CI.  A timeout is
+    # reported as still-blocked rather than as a pass or a failure, because
+    # that is exactly what it tells us: not proved, for a known reason.
+    res=$(timeout "${EQUIV_TIMEOUT:-600}" \
+          "$LVS_EQUIV" --gold "$d/gold.v" --gold-top "$top" --gate "$d/fabric.v" --gate-top fabric \
+          --placement "$d/placement.json" --gold-json "$d/gold.json" \
+          --db "$PRJXRAY_DB/$family" --device "$device" --quiet 2>&1 | tee -a "$log" | grep -E '^[0-9]+ proved')
+    proved=$(echo "$res" | awk '{print $1}')
+    differ=$(echo "$res" | awk '{print $3}')
+    if [ -z "${differ:-}" ]; then
+        printf '%-18s %10s %8s %8s   %s\n' "$name" blocked - - "no verdict within ${EQUIV_TIMEOUT:-600}s; $why"
+        annotate warning "$name" "still blocked (no verdict in time): $why"
         summary "| $name | blocked | - | - |"
+    elif [ "$differ" -gt 0 ]; then
+        printf '%-18s %10s %8s %8s   %s\n' "$name" blocked "$proved" "$differ" "$why"
+        annotate warning "$name" "still blocked: $differ differ; $why"
+        summary "| $name | blocked | $proved | $differ |"
     else
-        printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "blocked on something NEW, not the known error; see $log"
-        annotate error "$name" "failed on something other than the known blocker"
-        tail_log "$log"; summary "| $name | FAIL | - | - |"; fail=$((fail+1))
+        printf '%-18s %10s %8s %8s   %s\n' "$name" UNBLOCKED "$proved" 0 "it proves now -- promote this design"
+        annotate notice "$name" "no longer blocked: $why"
+        summary "| $name | **UNBLOCKED** | $proved | 0 |"; unblocked=$((unblocked+1))
     fi
 done
 

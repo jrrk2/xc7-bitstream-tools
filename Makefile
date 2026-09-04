@@ -1,4 +1,4 @@
-.PHONY: help setup tools nextpnr vc707-johnson arty-blinky verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: help setup tools yosys nextpnr vc707-johnson arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 DESIGN ?= johnson_sonata
@@ -18,7 +18,28 @@ PYTHON ?= $(abspath .venv/bin/python)
 NEXTPNR_DIR ?= nextpnr
 NEXTPNR_BUILD ?= build
 NEXTPNR_BIN ?= $(NEXTPNR_BUILD)/nextpnr-himbaechel
-YOSYS ?= yosys
+# yosys is pinned as a submodule and built from source, because the answer the
+# equivalence check gives depends on which yosys asked the question: the LiteX
+# SoC proves completely under the pinned one and shows 36 differences under
+# 0.64, since the two synthesise different netlists.  A sweep that used
+# whatever yosys happened to be installed would report a different result on
+# every machine and none of them would be wrong.
+#
+# Set YOSYS on the command line to use another one deliberately; the pinned
+# build is only the default, and `make yosys` is what produces it.
+YOSYS_DIR ?= yosys
+YOSYS_BIN ?= $(YOSYS_DIR)/yosys
+# Resolved and CHECKED by one script, so that neither this file nor the sweep
+# can quietly settle for a different version.  Recursively expanded, so the
+# check runs when a recipe actually needs yosys rather than on every make.
+#
+# Deliberately NOT called YOSYS.  Assigning YOSYS here would make `make` export
+# this computed value in place of the one the user put in the environment, so
+# the guard below would be handed an empty YOSYS, conclude that none was asked
+# for, and approve the pinned build -- while the recipe ran with an empty
+# command.  Leaving YOSYS alone lets it reach the guard as the user set it,
+# which is the whole point of having a guard.
+PINNED_YOSYS = $(shell scripts/pinned_yosys.sh 2>/dev/null)
 VC707_DIR ?= examples/vc707-johnson
 VC707_FASM ?=
 VC707_PART ?= xc7vx485tffg1761-2
@@ -39,6 +60,21 @@ ARTY_DEVICE ?= xc7a50t
 ARTY_FAMILY ?= artix7
 ARTY_OUT ?= blinky_arty.bit
 
+# The minimal LiteX SoC.  LITEX_GATEWARE holds the generated Verilog, checked
+# in so a build needs neither LiteX nor a RISC-V toolchain; `make vc707-litex-gen`
+# regenerates it and needs both.  yosys must run IN that directory: the design
+# $readmemh's its ROM from a relative path, and from anywhere else the ROM
+# reads as zero without a word of complaint.
+LITEX_DIR      ?= examples/vc707-litex
+LITEX_GATEWARE ?= $(LITEX_DIR)/gateware
+LITEX_TOP      ?= xilinx_vc707
+LITEX_PART     ?= xc7vx485tffg1761-2
+LITEX_DEVICE   ?= xc7vx485t
+LITEX_FAMILY   ?= virtex7
+LITEX_OUT      ?= litex_vc707.bit
+LITEX_FLOW     ?= openXC7
+LITEX_CPU      ?= serv
+
 # Every example verifies itself: the bitstream's FASM is extracted back to a
 # netlist and proved equivalent to the synthesis it came from.  A build that
 # produces a bitstream nobody has checked is a build that can be quietly wrong,
@@ -51,12 +87,69 @@ DESIGNS ?=
 TILEVERILOG ?= $(F2N_DIR)/build/tileverilog
 LVS_EQUIV ?= $(F2N_DIR)/build/lvs_equiv
 
+vc707-litex: fasm2netlist nextpnr
+	@scripts/pinned_yosys.sh >/dev/null
+	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "PRJXRAY_DB must name a Project X-Ray database checkout"; exit 2; }
+	@test -f "$(LITEX_GATEWARE)/$(LITEX_TOP).v" || { echo "no generated gateware; run 'make vc707-litex-gen' first"; exit 2; }
+	cd $(LITEX_GATEWARE) && $(PINNED_YOSYS) -q -p \
+		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+		$$(grep -v '^\#' sources.f)
+	$(NEXTPNR_BIN) --device $(LITEX_PART) -o xdc=$(LITEX_GATEWARE)/$(LITEX_TOP).xdc \
+		--json $(LITEX_GATEWARE)/$(LITEX_TOP).json \
+		-o fasm=$(LITEX_GATEWARE)/$(LITEX_TOP).fasm \
+		-o placement=$(LITEX_GATEWARE)/$(LITEX_TOP)_placement.json --router router2
+	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 \
+		--part $(LITEX_PART) --db $(PRJXRAY_DB) --fasm $(LITEX_GATEWARE)/$(LITEX_TOP).fasm --output $(LITEX_OUT)
+	@echo
+	@echo "Extracting it back out, with the families the tile model does not cover yet:"
+	$(F2N_BIN) --fasm $(LITEX_GATEWARE)/$(LITEX_TOP).fasm --db $(PRJXRAY_DB) \
+		--family $(LITEX_FAMILY) --device $(LITEX_DEVICE) --out $(LITEX_GATEWARE)/$(LITEX_TOP)_gates.v
+
+# Regenerate the gateware from the LiteX sources.  Needs the submodules under
+# litex-deps/ installed into the venv, and a RISC-V toolchain for the BIOS.
+# LITEX_FLOW names the flow in the BIOS banner's tagline, which is the only
+# thing distinguishing two bitstreams built from identical gateware.
+vc707-litex-gen:
+	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
+	@$(PYTHON) -c 'import litex, migen, litex_boards' 2>/dev/null || { \
+		echo "LiteX is not installed in $(PYTHON);"; \
+		echo "  $(PYTHON) -m pip install -e litex-deps/migen -e litex-deps/litex \\"; \
+		echo "      -e litex-deps/litex-boards -e litex-deps/pythondata-cpu-serv \\"; \
+		echo "      -e litex-deps/pythondata-software-picolibc -e litex-deps/pythondata-software-compiler_rt"; \
+		exit 2; }
+	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
+		--with-led-chaser --cpu-type $(LITEX_CPU) --integrated-main-ram-size 0x4000 \
+		--flow $(LITEX_FLOW) --no-compile-gateware --build --output-dir $(LITEX_DIR)/build-$(LITEX_FLOW)
+	cp $(LITEX_DIR)/build-$(LITEX_FLOW)/gateware/$(LITEX_TOP).v \
+	   $(LITEX_DIR)/build-$(LITEX_FLOW)/gateware/$(LITEX_TOP).xdc \
+	   $(LITEX_DIR)/build-$(LITEX_FLOW)/gateware/$(LITEX_TOP)_*.init $(LITEX_GATEWARE)/
+	@echo "refreshed $(LITEX_GATEWARE) from the $(LITEX_FLOW) build"
+
+# Prove the LiteX SoC against its own synthesis.  Separate from vc707-litex
+# because the two answer different questions and cost different amounts: that
+# target asks whether the flow produces a bitstream and gets the design back
+# out of it, this one asks whether what came back out is the same circuit.
+# It runs the same sweep CI does, narrowed to this one design, so a result
+# here and a result in CI are the same measurement rather than two that
+# happen to agree.  A design the tile model cannot yet cover is reported as
+# blocked, with the reason -- not as a failure, and not silently.
+vc707-litex-verify: fasm2netlist nextpnr
+	@scripts/pinned_yosys.sh >/dev/null
+	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "PRJXRAY_DB must name a Project X-Ray database checkout"; exit 2; }
+	YOSYS=$(PINNED_YOSYS) NEXTPNR_BIN=$(NEXTPNR_BIN) PRJXRAY_DB=$(PRJXRAY_DB) \
+		TILEVERILOG=$(TILEVERILOG) LVS_EQUIV=$(LVS_EQUIV) OUT=$(VERIFY_DIR)/examples \
+		scripts/verify_examples.sh vc707-litex
+
 help:
 	@printf '%s\n' 'Targets:' \
 	  '  make setup                              Create the local Python environment' \
 	  '  make tools                              Build Project X-Ray conversion tools' \
+	  '  make yosys                              Build the pinned yosys (the one the results are quoted for)' \
 	  '  make vc707-johnson PRJXRAY_DB=...        Build VC707 Johnson from source to raw bitstream' \
 	  '  make arty-blinky PRJXRAY_DB=...          Build the Arty A7 blinky (the carry-chain example)' \
+	  '  make vc707-litex PRJXRAY_DB=...          Build the LiteX SoC from its checked-in gateware, and extract it' \
+	  '  make vc707-litex-gen [LITEX_FLOW=vivado] Regenerate that gateware from the LiteX sources' \
+	  '  make vc707-litex-verify PRJXRAY_DB=...   Prove that SoC equals its synthesis, as CI does' \
 	  '  make sonata FASM=... PRJXRAY_DB=...     Convert an Artix-7 FASM to Sonata UF2' \
 	  '  make vc707 VC707_FASM=... PRJXRAY_DB=... Convert a Virtex-7 FASM to raw bitstream' \
 	  '  make validate-bitstream PART=... BIT=... TESTBENCH=... PRJXRAY_DB=...' \
@@ -79,6 +172,18 @@ tools:
 	cmake -S prjxray -B prjxray/build -DCMAKE_BUILD_TYPE=Release
 	cmake --build prjxray/build --target bitread xc7frames2bit --parallel 4
 
+# The pinned yosys builds with its own makefile -- CMake arrived after this
+# commit, so do not "modernise" this without moving the pin, and moving the pin
+# means re-establishing which results it gives.  ABC comes with it as a
+# submodule, hence --recursive in the message: without it the build stops part
+# way through with a missing abc rather than at the checkout.
+yosys:
+	@test -f $(YOSYS_DIR)/Makefile && test -f $(YOSYS_DIR)/abc/abc.rc || { \
+	  echo "the yosys submodule is not checked out; run:"; \
+	  echo "  git submodule update --init --recursive $(YOSYS_DIR)"; exit 2; }
+	$(MAKE) -C $(YOSYS_DIR) -j$$(nproc)
+	@echo "built $$($(YOSYS_BIN) -V)"
+
 nextpnr:
 	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "PRJXRAY_DB must name a Project X-Ray database checkout"; exit 2; }
 	cmake -S $(NEXTPNR_DIR) -B $(NEXTPNR_BUILD) -DARCH=himbaechel -DHIMBAECHEL_UARCH=xilinx \
@@ -87,8 +192,8 @@ nextpnr:
 	cmake --build $(NEXTPNR_BUILD) --target nextpnr-himbaechel --parallel 4
 
 vc707-johnson: tools nextpnr
-	@command -v "$(YOSYS)" >/dev/null || { echo "YOSYS not found: $(YOSYS)"; exit 2; }
-	cd $(VC707_DIR) && $(YOSYS) -p 'synth_xilinx -flatten -abc9 -nobram -arch xc7 -top top; write_json johnson.json' top.v counter25_core.v
+	@scripts/pinned_yosys.sh >/dev/null
+	cd $(VC707_DIR) && $(PINNED_YOSYS) -p 'synth_xilinx -flatten -abc9 -nobram -arch xc7 -top top; write_json johnson.json' top.v counter25_core.v
 	$(NEXTPNR_BIN) --device $(VC707_PART) -o xdc=$(VC707_DIR)/top.xdc --json $(VC707_DIR)/johnson.json \
 		-o fasm=$(VC707_DIR)/johnson.fasm -o placement=$(VC707_DIR)/johnson_placement.json --router router2
 	$(MAKE) vc707 VC707_FASM=$(VC707_DIR)/johnson.fasm PRJXRAY_DB=$(PRJXRAY_DB) VC707_OUT=$(VC707_OUT)
@@ -103,8 +208,8 @@ endif
 # inverter.  Small, but the only example here that exercises the carry chain,
 # which is a part of the fabric a design without one cannot check at all.
 arty-blinky: tools nextpnr
-	@command -v "$(YOSYS)" >/dev/null || { echo "YOSYS not found: $(YOSYS)"; exit 2; }
-	cd $(ARTY_DIR) && $(YOSYS) -p 'synth_xilinx -flatten -abc9 -nobram -arch xc7 -top blinky; write_json blinky.json' blinky.v
+	@scripts/pinned_yosys.sh >/dev/null
+	cd $(ARTY_DIR) && $(PINNED_YOSYS) -p 'synth_xilinx -flatten -abc9 -nobram -arch xc7 -top blinky; write_json blinky.json' blinky.v
 	$(NEXTPNR_BIN) --device $(ARTY_PART) -o xdc=$(ARTY_DIR)/blinky.xdc --json $(ARTY_DIR)/blinky.json \
 		-o fasm=$(ARTY_DIR)/blinky.fasm -o placement=$(ARTY_DIR)/blinky_placement.json --router router2
 	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 \
@@ -120,9 +225,9 @@ endif
 # built from source and proved against its own bitstream.  The ones it does
 # not cover are printed with the reason rather than left out.
 verify-examples: fasm2netlist nextpnr
-	@command -v "$(YOSYS)" >/dev/null || { echo "YOSYS not found: $(YOSYS)"; exit 2; }
+	@scripts/pinned_yosys.sh >/dev/null
 	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "PRJXRAY_DB must name a Project X-Ray database checkout"; exit 2; }
-	YOSYS=$(YOSYS) NEXTPNR_BIN=$(NEXTPNR_BIN) PRJXRAY_DB=$(PRJXRAY_DB) \
+	YOSYS=$(PINNED_YOSYS) NEXTPNR_BIN=$(NEXTPNR_BIN) PRJXRAY_DB=$(PRJXRAY_DB) \
 		TILEVERILOG=$(TILEVERILOG) LVS_EQUIV=$(LVS_EQUIV) OUT=$(VERIFY_DIR)/examples \
 		scripts/verify_examples.sh $(DESIGNS)
 
@@ -195,7 +300,7 @@ sat-match: fasm2netlist
 verify-extraction: fasm2netlist
 	@test -n "$(V_FASM)" || { echo "verify-extraction needs V_FASM=..."; exit 2; }
 	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "PRJXRAY_DB must name a Project X-Ray database checkout"; exit 2; }
-	@command -v "$(YOSYS)" >/dev/null || { echo "YOSYS not found: $(YOSYS)"; exit 2; }
+	@scripts/pinned_yosys.sh >/dev/null
 	@mkdir -p $(VERIFY_DIR)/$(V_NAME)
 	$(TILEVERILOG) --fasm $(V_FASM) --db $(PRJXRAY_DB)/$(V_FAMILY) --device $(V_DEVICE) \
 		--xdc $(V_XDC) --part $(V_PART) \
@@ -203,8 +308,8 @@ verify-extraction: fasm2netlist
 	$(TILEVERILOG) --fasm $(V_FASM) --db $(PRJXRAY_DB)/$(V_FAMILY) --device $(V_DEVICE) \
 		--xdc $(V_XDC) --part $(V_PART) --placement $(V_PLACE) --gold-json $(V_JSON) \
 		--out $(VERIFY_DIR)/$(V_NAME)/fabric_named.v
-	$(YOSYS) -q -p "read_json $(V_JSON); hierarchy -top $(V_TOP); splitnets; \
-		select $(V_TOP); write_verilog -noattr -selected $(VERIFY_DIR)/$(V_NAME)/gold.v"
+	$(PINNED_YOSYS) -q -p "read_json $(V_JSON); hierarchy -top $(V_TOP); splitnets; \
+		select $(V_TOP); write_verilog -noattr -norename -selected $(VERIFY_DIR)/$(V_NAME)/gold.v"
 	$(LVS_EQUIV) --gold $(VERIFY_DIR)/$(V_NAME)/gold.v --gold-top $(V_TOP) \
 		--gate $(VERIFY_DIR)/$(V_NAME)/fabric.v --gate-top fabric \
 		--placement $(V_PLACE) --gold-json $(V_JSON) \
