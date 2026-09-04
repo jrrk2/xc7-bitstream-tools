@@ -59,7 +59,8 @@ writes them beside each design's artefacts in `toolchain`, so a result can be
 compared with the run that produced it rather than guessed at.
 
 Build the pinned yosys with `make yosys`; the sweep picks it up automatically
-if it is there, and falls back to whatever is on `PATH` if it is not.
+if it is there, and otherwise stops unless `YOSYS_UNPINNED=1` is set to use
+whatever is on `PATH` deliberately.
 
 Both flows produce a bitstream that boots on the board. They are built from
 identical gateware, so each announces itself in the BIOS banner:
