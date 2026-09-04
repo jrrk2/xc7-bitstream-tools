@@ -31,8 +31,13 @@ pinned=$(git -C "$root" ls-tree HEAD yosys 2>/dev/null | awk '$2 == "commit" { p
 
 candidate=${YOSYS:-}
 if [ -z "$candidate" ]; then
+    # The in-tree build `make yosys` produces, then the install prefix CI uses
+    # when it has to hand the binary to another job.  Both are the pinned
+    # submodule; neither is whatever apt put on PATH.
     if [ -x "$root/yosys/yosys" ]; then
         candidate="$root/yosys/yosys"
+    elif [ -x "$root/yosys-install/bin/yosys" ]; then
+        candidate="$root/yosys-install/bin/yosys"
     else
         say "yosys has not been built.  Run:"
         say "    git submodule update --init --recursive yosys"

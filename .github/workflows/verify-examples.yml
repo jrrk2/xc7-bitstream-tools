@@ -39,6 +39,8 @@ jobs:
       matrix: ${{ steps.list.outputs.designs }}
     steps:
       - uses: actions/checkout@v4
+      - name: Check no package-manager yosys crept back in
+        run: bash scripts/check_no_apt_yosys.sh
       - id: list
         run: echo "designs=$(bash scripts/verify_examples.sh --list)" >> "$GITHUB_OUTPUT"
 
@@ -260,8 +262,9 @@ jobs:
       - name: Build the bitstream and prove the extraction equals it
         env:
           PRJXRAY_DB: .deps/prjxray-db
-          # the pinned build from the tools job, never whatever apt has
-          YOSYS: yosys-install/bin/yosys
+          # YOSYS deliberately unset: scripts/pinned_yosys.sh finds the build
+          # this job unpacked and checks it against the pinned submodule, which
+          # is one place to be right rather than two.
         run: bash scripts/verify_examples.sh "${{ matrix.design }}"
 
       - name: Upload the extraction
