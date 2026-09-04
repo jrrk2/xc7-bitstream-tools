@@ -11,17 +11,14 @@
 # defaults from the Makefile that calls this).
 set -u -o pipefail
 
-# The pinned build if it is there, else whatever is on PATH.  Which yosys
-# synthesised a design decides what this sweep is even asking -- see the note
-# on the LiteX SoC below -- so the version is printed with the results and
-# recorded beside each design's artefacts.
-: ${YOSYS:=$([ -x yosys/yosys ] && echo yosys/yosys || echo yosys)}
-# ...and absolute, because one design has to be synthesised from inside its own
-# directory (its Verilog $readmemh's the ROM by a relative path) and a relative
-# tool path does not survive the cd.  A bare name is left alone for PATH.
-case "$YOSYS" in
-    */*) [ -x "$YOSYS" ] && YOSYS="$(cd "$(dirname "$YOSYS")" && pwd)/$(basename "$YOSYS")" ;;
-esac
+# The pinned yosys, and nothing else unless you say so.  Which yosys
+# synthesised a design decides what this sweep is even asking, so a run with
+# the wrong one does not produce a worse answer, it answers a different
+# question while looking identical.  scripts/pinned_yosys.sh resolves it,
+# checks it against the submodule this repository records, and refuses
+# anything else; YOSYS_UNPINNED=1 is the way to mean it on purpose.
+YOSYS=$("$(dirname "$0")/pinned_yosys.sh") || exit 2
+export YOSYS
 : ${NEXTPNR_BIN:=build/nextpnr-himbaechel}
 : ${PRJXRAY_DB:=.deps/prjxray-db}
 : ${EXAMPLES:=nextpnr/himbaechel/uarch/xilinx/examples}

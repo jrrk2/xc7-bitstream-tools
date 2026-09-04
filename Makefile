@@ -29,7 +29,17 @@ NEXTPNR_BIN ?= $(NEXTPNR_BUILD)/nextpnr-himbaechel
 # build is only the default, and `make yosys` is what produces it.
 YOSYS_DIR ?= yosys
 YOSYS_BIN ?= $(YOSYS_DIR)/yosys
-YOSYS ?= $(if $(wildcard $(YOSYS_BIN)),$(abspath $(YOSYS_BIN)),yosys)
+# Resolved and CHECKED by one script, so that neither this file nor the sweep
+# can quietly settle for a different version.  Recursively expanded, so the
+# check runs when a recipe actually needs yosys rather than on every make.
+#
+# Deliberately NOT called YOSYS.  Assigning YOSYS here would make `make` export
+# this computed value in place of the one the user put in the environment, so
+# the guard below would be handed an empty YOSYS, conclude that none was asked
+# for, and approve the pinned build -- while the recipe ran with an empty
+# command.  Leaving YOSYS alone lets it reach the guard as the user set it,
+# which is the whole point of having a guard.
+PINNED_YOSYS = $(shell scripts/pinned_yosys.sh 2>/dev/null)
 VC707_DIR ?= examples/vc707-johnson
 VC707_FASM ?=
 VC707_PART ?= xc7vx485tffg1761-2
@@ -78,10 +88,10 @@ TILEVERILOG ?= $(F2N_DIR)/build/tileverilog
 LVS_EQUIV ?= $(F2N_DIR)/build/lvs_equiv
 
 vc707-litex: fasm2netlist nextpnr
-	@command -v "$(YOSYS)" >/dev/null || { echo "YOSYS not found: $(YOSYS)"; exit 2; }
+	@scripts/pinned_yosys.sh >/dev/null
 	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "PRJXRAY_DB must name a Project X-Ray database checkout"; exit 2; }
 	@test -f "$(LITEX_GATEWARE)/$(LITEX_TOP).v" || { echo "no generated gateware; run 'make vc707-litex-gen' first"; exit 2; }
-	cd $(LITEX_GATEWARE) && $(YOSYS) -q -p \
+	cd $(LITEX_GATEWARE) && $(PINNED_YOSYS) -q -p \
 		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
 		$$(grep -v '^\#' sources.f)
 	$(NEXTPNR_BIN) --device $(LITEX_PART) -o xdc=$(LITEX_GATEWARE)/$(LITEX_TOP).xdc \
@@ -124,9 +134,9 @@ vc707-litex-gen:
 # happen to agree.  A design the tile model cannot yet cover is reported as
 # blocked, with the reason -- not as a failure, and not silently.
 vc707-litex-verify: fasm2netlist nextpnr
-	@command -v "$(YOSYS)" >/dev/null || { echo "YOSYS not found: $(YOSYS)"; exit 2; }
+	@scripts/pinned_yosys.sh >/dev/null
 	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "PRJXRAY_DB must name a Project X-Ray database checkout"; exit 2; }
-	YOSYS=$(YOSYS) NEXTPNR_BIN=$(NEXTPNR_BIN) PRJXRAY_DB=$(PRJXRAY_DB) \
+	YOSYS=$(PINNED_YOSYS) NEXTPNR_BIN=$(NEXTPNR_BIN) PRJXRAY_DB=$(PRJXRAY_DB) \
 		TILEVERILOG=$(TILEVERILOG) LVS_EQUIV=$(LVS_EQUIV) OUT=$(VERIFY_DIR)/examples \
 		scripts/verify_examples.sh vc707-litex
 
@@ -182,8 +192,8 @@ nextpnr:
 	cmake --build $(NEXTPNR_BUILD) --target nextpnr-himbaechel --parallel 4
 
 vc707-johnson: tools nextpnr
-	@command -v "$(YOSYS)" >/dev/null || { echo "YOSYS not found: $(YOSYS)"; exit 2; }
-	cd $(VC707_DIR) && $(YOSYS) -p 'synth_xilinx -flatten -abc9 -nobram -arch xc7 -top top; write_json johnson.json' top.v counter25_core.v
+	@scripts/pinned_yosys.sh >/dev/null
+	cd $(VC707_DIR) && $(PINNED_YOSYS) -p 'synth_xilinx -flatten -abc9 -nobram -arch xc7 -top top; write_json johnson.json' top.v counter25_core.v
 	$(NEXTPNR_BIN) --device $(VC707_PART) -o xdc=$(VC707_DIR)/top.xdc --json $(VC707_DIR)/johnson.json \
 		-o fasm=$(VC707_DIR)/johnson.fasm -o placement=$(VC707_DIR)/johnson_placement.json --router router2
 	$(MAKE) vc707 VC707_FASM=$(VC707_DIR)/johnson.fasm PRJXRAY_DB=$(PRJXRAY_DB) VC707_OUT=$(VC707_OUT)
@@ -198,8 +208,8 @@ endif
 # inverter.  Small, but the only example here that exercises the carry chain,
 # which is a part of the fabric a design without one cannot check at all.
 arty-blinky: tools nextpnr
-	@command -v "$(YOSYS)" >/dev/null || { echo "YOSYS not found: $(YOSYS)"; exit 2; }
-	cd $(ARTY_DIR) && $(YOSYS) -p 'synth_xilinx -flatten -abc9 -nobram -arch xc7 -top blinky; write_json blinky.json' blinky.v
+	@scripts/pinned_yosys.sh >/dev/null
+	cd $(ARTY_DIR) && $(PINNED_YOSYS) -p 'synth_xilinx -flatten -abc9 -nobram -arch xc7 -top blinky; write_json blinky.json' blinky.v
 	$(NEXTPNR_BIN) --device $(ARTY_PART) -o xdc=$(ARTY_DIR)/blinky.xdc --json $(ARTY_DIR)/blinky.json \
 		-o fasm=$(ARTY_DIR)/blinky.fasm -o placement=$(ARTY_DIR)/blinky_placement.json --router router2
 	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 \
@@ -215,9 +225,9 @@ endif
 # built from source and proved against its own bitstream.  The ones it does
 # not cover are printed with the reason rather than left out.
 verify-examples: fasm2netlist nextpnr
-	@command -v "$(YOSYS)" >/dev/null || { echo "YOSYS not found: $(YOSYS)"; exit 2; }
+	@scripts/pinned_yosys.sh >/dev/null
 	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "PRJXRAY_DB must name a Project X-Ray database checkout"; exit 2; }
-	YOSYS=$(YOSYS) NEXTPNR_BIN=$(NEXTPNR_BIN) PRJXRAY_DB=$(PRJXRAY_DB) \
+	YOSYS=$(PINNED_YOSYS) NEXTPNR_BIN=$(NEXTPNR_BIN) PRJXRAY_DB=$(PRJXRAY_DB) \
 		TILEVERILOG=$(TILEVERILOG) LVS_EQUIV=$(LVS_EQUIV) OUT=$(VERIFY_DIR)/examples \
 		scripts/verify_examples.sh $(DESIGNS)
 
@@ -290,7 +300,7 @@ sat-match: fasm2netlist
 verify-extraction: fasm2netlist
 	@test -n "$(V_FASM)" || { echo "verify-extraction needs V_FASM=..."; exit 2; }
 	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "PRJXRAY_DB must name a Project X-Ray database checkout"; exit 2; }
-	@command -v "$(YOSYS)" >/dev/null || { echo "YOSYS not found: $(YOSYS)"; exit 2; }
+	@scripts/pinned_yosys.sh >/dev/null
 	@mkdir -p $(VERIFY_DIR)/$(V_NAME)
 	$(TILEVERILOG) --fasm $(V_FASM) --db $(PRJXRAY_DB)/$(V_FAMILY) --device $(V_DEVICE) \
 		--xdc $(V_XDC) --part $(V_PART) \
@@ -298,7 +308,7 @@ verify-extraction: fasm2netlist
 	$(TILEVERILOG) --fasm $(V_FASM) --db $(PRJXRAY_DB)/$(V_FAMILY) --device $(V_DEVICE) \
 		--xdc $(V_XDC) --part $(V_PART) --placement $(V_PLACE) --gold-json $(V_JSON) \
 		--out $(VERIFY_DIR)/$(V_NAME)/fabric_named.v
-	$(YOSYS) -q -p "read_json $(V_JSON); hierarchy -top $(V_TOP); splitnets; \
+	$(PINNED_YOSYS) -q -p "read_json $(V_JSON); hierarchy -top $(V_TOP); splitnets; \
 		select $(V_TOP); write_verilog -noattr -norename -selected $(VERIFY_DIR)/$(V_NAME)/gold.v"
 	$(LVS_EQUIV) --gold $(VERIFY_DIR)/$(V_NAME)/gold.v --gold-top $(V_TOP) \
 		--gate $(VERIFY_DIR)/$(V_NAME)/fabric.v --gate-top fabric \
