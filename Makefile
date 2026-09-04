@@ -1,4 +1,4 @@
-.PHONY: help setup tools nextpnr vc707-johnson arty-blinky vc707-litex vc707-litex-gen verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: help setup tools nextpnr vc707-johnson arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 DESIGN ?= johnson_sonata
@@ -104,6 +104,21 @@ vc707-litex-gen:
 	   $(LITEX_DIR)/build-$(LITEX_FLOW)/gateware/$(LITEX_TOP)_*.init $(LITEX_GATEWARE)/
 	@echo "refreshed $(LITEX_GATEWARE) from the $(LITEX_FLOW) build"
 
+# Prove the LiteX SoC against its own synthesis.  Separate from vc707-litex
+# because the two answer different questions and cost different amounts: that
+# target asks whether the flow produces a bitstream and gets the design back
+# out of it, this one asks whether what came back out is the same circuit.
+# It runs the same sweep CI does, narrowed to this one design, so a result
+# here and a result in CI are the same measurement rather than two that
+# happen to agree.  A design the tile model cannot yet cover is reported as
+# blocked, with the reason -- not as a failure, and not silently.
+vc707-litex-verify: fasm2netlist nextpnr
+	@command -v "$(YOSYS)" >/dev/null || { echo "YOSYS not found: $(YOSYS)"; exit 2; }
+	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "PRJXRAY_DB must name a Project X-Ray database checkout"; exit 2; }
+	YOSYS=$(YOSYS) NEXTPNR_BIN=$(NEXTPNR_BIN) PRJXRAY_DB=$(PRJXRAY_DB) \
+		TILEVERILOG=$(TILEVERILOG) LVS_EQUIV=$(LVS_EQUIV) OUT=$(VERIFY_DIR)/examples \
+		scripts/verify_examples.sh vc707-litex
+
 help:
 	@printf '%s\n' 'Targets:' \
 	  '  make setup                              Create the local Python environment' \
@@ -112,6 +127,7 @@ help:
 	  '  make arty-blinky PRJXRAY_DB=...          Build the Arty A7 blinky (the carry-chain example)' \
 	  '  make vc707-litex PRJXRAY_DB=...          Build the LiteX SoC from its checked-in gateware, and extract it' \
 	  '  make vc707-litex-gen [LITEX_FLOW=vivado] Regenerate that gateware from the LiteX sources' \
+	  '  make vc707-litex-verify PRJXRAY_DB=...   Prove that SoC equals its synthesis, as CI does' \
 	  '  make sonata FASM=... PRJXRAY_DB=...     Convert an Artix-7 FASM to Sonata UF2' \
 	  '  make vc707 VC707_FASM=... PRJXRAY_DB=... Convert a Virtex-7 FASM to raw bitstream' \
 	  '  make validate-bitstream PART=... BIT=... TESTBENCH=... PRJXRAY_DB=...' \
