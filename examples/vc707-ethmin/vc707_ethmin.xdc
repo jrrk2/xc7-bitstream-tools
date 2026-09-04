@@ -55,3 +55,24 @@ set_false_path -to [get_ports eth_rst_n]
 # pin constraints and create_clock on PORTS only, and chokes on
 # `get_pins -hierarchical -filter {...}` ("failed to parse target").  nextpnr
 # takes its target from --freq instead; the Vivado build keeps the full file.
+
+# Hard-block placement, extracted from an IMPLEMENTED Vivado checkpoint by
+# ethmin/export_hardblock_locs.tcl in vc707-openflow-demos.
+#
+# These are not a tuning preference.  Which CMT column an MMCM sits in decides
+# whether a transceiver's clocks can reach it, and left to itself the placer
+# put both PHY MMCMs and all six PHY clock buffers somewhere else -- the design
+# configured, the CPU ran, and the Ethernet never came up because the MMCMs
+# never locked.  The transceiver and the system MMCM it already agreed on.
+set_property LOC BUFGCTRL_X0Y18 [get_cells clkgen.clk_mac_bufg]
+set_property LOC BUFGCTRL_X0Y16 [get_cells clkgen.clk_sys_bufg]
+set_property LOC MMCME2_ADV_X1Y5 [get_cells clkgen.mmcm]
+set_property LOC GTXE2_CHANNEL_X1Y1 [get_cells eth.i_phy.GTXE2_CHANNEL]
+set_property LOC MMCME2_ADV_X0Y6 [get_cells eth.i_phy.MMCME2_ADV]
+set_property LOC MMCME2_ADV_X0Y3 [get_cells eth.i_phy.MMCME2_ADV_1]
+set_property LOC BUFGCTRL_X0Y1 [get_cells eth.i_phy.bufg_ethrx125]
+set_property LOC BUFGCTRL_X0Y0 [get_cells eth.i_phy.bufg_ethrx62]
+set_property LOC BUFGCTRL_X0Y19 [get_cells eth.i_phy.bufg_ethtx125]
+set_property LOC BUFGCTRL_X0Y17 [get_cells eth.i_phy.bufg_ethtx62]
+set_property LOC BUFGCTRL_X0Y2 [get_cells eth.i_phy.bufg_rxoutrebuf]
+set_property LOC BUFGCTRL_X0Y3 [get_cells eth.i_phy.bufg_txoutrebuf]
