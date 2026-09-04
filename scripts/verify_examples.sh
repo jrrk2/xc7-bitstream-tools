@@ -11,7 +11,17 @@
 # defaults from the Makefile that calls this).
 set -u -o pipefail
 
-: ${YOSYS:=yosys}
+# The pinned build if it is there, else whatever is on PATH.  Which yosys
+# synthesised a design decides what this sweep is even asking -- see the note
+# on the LiteX SoC below -- so the version is printed with the results and
+# recorded beside each design's artefacts.
+: ${YOSYS:=$([ -x yosys/yosys ] && echo yosys/yosys || echo yosys)}
+# ...and absolute, because one design has to be synthesised from inside its own
+# directory (its Verilog $readmemh's the ROM by a relative path) and a relative
+# tool path does not survive the cd.  A bare name is left alone for PATH.
+case "$YOSYS" in
+    */*) [ -x "$YOSYS" ] && YOSYS="$(cd "$(dirname "$YOSYS")" && pwd)/$(basename "$YOSYS")" ;;
+esac
 : ${NEXTPNR_BIN:=build/nextpnr-himbaechel}
 : ${PRJXRAY_DB:=.deps/prjxray-db}
 : ${EXAMPLES:=nextpnr/himbaechel/uarch/xilinx/examples}
@@ -55,7 +65,7 @@ NOT_YET=()
 #            equiv  it builds and extracts, but the equivalence check differs
 BLOCKED=(
   "vc707-gtrefclk|.|examples/vc707-gtrefclk/top.v|top|examples/vc707-gtrefclk/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|pnr|failed to find IBUFDS_GTE2 site for pad|nextpnr cannot bind a gigabit-transceiver reference clock to its pad, so no GT design (LiteEth SGMII included) can be placed"
-  "vc707-litex|examples/vc707-litex/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|equiv||every register is matched and every memory boundary proves -- 39 distributed RAM ports and 17 block RAMs -- and all but two cones are equal. The two that are not are the reset synchroniser, which waits on the MMCM's LOCKED: that signal reaches the interconnect boundary in the tile model and stops there, with no consumer, so the fabric's reset does not depend on it and the synthesis's does. Run lvs_equiv --explain to see it named"
+  "vc707-litex|examples/vc707-litex/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|equiv||this SoC PROVES COMPLETELY (2820 proved, 0 differ) when yosys 0.63+173 builds it, and shows 36 differences when yosys 0.64 does -- the two synthesise different netlists, so they are not the same question. Kept here rather than promoted because the answer depends on a toolchain this sweep does not pin; the row says UNBLOCKED whenever the yosys in use does prove it. The 0.64 differences sit in the SERV register file and the CSR block, around a distributed-RAM read address the fabric computes and the synthesis does not. Run lvs_equiv --explain to see them named"
 )
 
 # --list prints the design names as JSON, so a CI matrix can be generated from
@@ -108,6 +118,17 @@ mkdir -p "$OUT"
 summary "| design | result | proved | differ |"
 summary "|---|---|---|---|"
 fail=0 pass=0
+# Say which tools produced this, before saying what they produced.  A result
+# here is a statement about one synthesis of one design, and two yosys versions
+# do not synthesise the same netlist -- the LiteX SoC proves completely under
+# one and shows differences under another, which is a fact about the two
+# netlists and not about the extractor.  A run that does not record its
+# toolchain cannot be compared with a run from last week, and the version was
+# unrecoverable exactly once, which was once too often.
+yosys_version=$("$YOSYS" -V 2>/dev/null | head -1)
+echo "yosys:   ${yosys_version:-unknown ($YOSYS)}"
+echo "nextpnr: $("$NEXTPNR_BIN" --version 2>&1 | head -1)"
+echo
 printf '%-18s %10s %8s %8s   %s\n' DESIGN RESULT PROVED DIFFER NOTE
 printf '%.0s-' {1..70}; echo
 
@@ -117,6 +138,8 @@ for row in "${DESIGNS[@]}"; do
     d="$OUT/$name"; mkdir -p "$d"
     log="$d/build.log"
 
+    { echo "yosys: ${yosys_version:-unknown}"
+      echo "nextpnr: $("$NEXTPNR_BIN" --version 2>&1 | head -1)"; } > "$d/toolchain"
     if ! "$YOSYS" -q -p "synth_xilinx -flatten -abc9 -nobram -arch xc7 -top $top; write_json $d/gold.json" \
             $srcs >"$log" 2>&1; then
         printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "synthesis failed, see $log"
@@ -185,6 +208,8 @@ for row in ${BLOCKED[@]+"${BLOCKED[@]}"}; do
         @*) srcs="$(grep -v '^#' "$dir/${srcs#@}" | tr '\n' ' ')" ;;
     esac
 
+    { echo "yosys: ${yosys_version:-unknown}"
+      echo "nextpnr: $("$NEXTPNR_BIN" --version 2>&1 | head -1)"; } > "$d/toolchain"
     if ! ( cd "$dir" && "$YOSYS" -q -p \
             "synth_xilinx -flatten -abc9 -arch xc7 -top $top; write_json $d/gold.json" \
             $srcs ) >>"$log" 2>&1; then

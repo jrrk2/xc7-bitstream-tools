@@ -1,4 +1,4 @@
-.PHONY: help setup tools nextpnr vc707-johnson arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: help setup tools yosys nextpnr vc707-johnson arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 DESIGN ?= johnson_sonata
@@ -18,7 +18,18 @@ PYTHON ?= $(abspath .venv/bin/python)
 NEXTPNR_DIR ?= nextpnr
 NEXTPNR_BUILD ?= build
 NEXTPNR_BIN ?= $(NEXTPNR_BUILD)/nextpnr-himbaechel
-YOSYS ?= yosys
+# yosys is pinned as a submodule and built from source, because the answer the
+# equivalence check gives depends on which yosys asked the question: the LiteX
+# SoC proves completely under the pinned one and shows 36 differences under
+# 0.64, since the two synthesise different netlists.  A sweep that used
+# whatever yosys happened to be installed would report a different result on
+# every machine and none of them would be wrong.
+#
+# Set YOSYS on the command line to use another one deliberately; the pinned
+# build is only the default, and `make yosys` is what produces it.
+YOSYS_DIR ?= yosys
+YOSYS_BIN ?= $(YOSYS_DIR)/yosys
+YOSYS ?= $(if $(wildcard $(YOSYS_BIN)),$(abspath $(YOSYS_BIN)),yosys)
 VC707_DIR ?= examples/vc707-johnson
 VC707_FASM ?=
 VC707_PART ?= xc7vx485tffg1761-2
@@ -123,6 +134,7 @@ help:
 	@printf '%s\n' 'Targets:' \
 	  '  make setup                              Create the local Python environment' \
 	  '  make tools                              Build Project X-Ray conversion tools' \
+	  '  make yosys                              Build the pinned yosys (the one the results are quoted for)' \
 	  '  make vc707-johnson PRJXRAY_DB=...        Build VC707 Johnson from source to raw bitstream' \
 	  '  make arty-blinky PRJXRAY_DB=...          Build the Arty A7 blinky (the carry-chain example)' \
 	  '  make vc707-litex PRJXRAY_DB=...          Build the LiteX SoC from its checked-in gateware, and extract it' \
@@ -149,6 +161,18 @@ setup:
 tools:
 	cmake -S prjxray -B prjxray/build -DCMAKE_BUILD_TYPE=Release
 	cmake --build prjxray/build --target bitread xc7frames2bit --parallel 4
+
+# The pinned yosys builds with its own makefile -- CMake arrived after this
+# commit, so do not "modernise" this without moving the pin, and moving the pin
+# means re-establishing which results it gives.  ABC comes with it as a
+# submodule, hence --recursive in the message: without it the build stops part
+# way through with a missing abc rather than at the checkout.
+yosys:
+	@test -f $(YOSYS_DIR)/Makefile && test -f $(YOSYS_DIR)/abc/abc.rc || { \
+	  echo "the yosys submodule is not checked out; run:"; \
+	  echo "  git submodule update --init --recursive $(YOSYS_DIR)"; exit 2; }
+	$(MAKE) -C $(YOSYS_DIR) -j$$(nproc)
+	@echo "built $$($(YOSYS_BIN) -V)"
 
 nextpnr:
 	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "PRJXRAY_DB must name a Project X-Ray database checkout"; exit 2; }

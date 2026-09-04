@@ -31,3 +31,6 @@
 [submodule "litex-deps/liteeth"]
 	path = litex-deps/liteeth
 	url = https://github.com/jrrk2/liteeth
+[submodule "yosys"]
+	path = yosys
+	url = https://github.com/YosysHQ/yosys

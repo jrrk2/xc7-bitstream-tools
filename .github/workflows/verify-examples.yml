@@ -68,6 +68,33 @@ jobs:
         run: |
           echo "nextpnr=$(git -C nextpnr rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "db=$(git -C .deps/prjxray-db rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "yosys=$(git -C yosys rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # yosys is pinned as a submodule and built here, not installed from apt.
+      # Which yosys asked the question changes the answer: the LiteX SoC proves
+      # completely under the pinned version and shows 36 differences under
+      # 0.64, because the two synthesise different netlists.  An unpinned
+      # toolchain makes a red run and a green run incomparable.
+      - name: Restore the pinned yosys
+        id: cache-yosys
+        uses: actions/cache/restore@v4
+        with:
+          path: yosys-install
+          key: yosys-${{ steps.keys.outputs.yosys }}-${{ runner.os }}
+
+      - name: Build the pinned yosys
+        if: steps.cache-yosys.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get install -y build-essential bison flex libreadline-dev gawk \
+            tcl-dev libffi-dev pkg-config zlib1g-dev
+          make -C yosys -j"$(nproc)" PREFIX="$PWD/yosys-install" install
+
+      - name: Save the pinned yosys
+        if: always() && steps.cache-yosys.outputs.cache-hit != 'true' && hashFiles('yosys-install/bin/yosys') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: yosys-install
+          key: yosys-${{ steps.keys.outputs.yosys }}-${{ runner.os }}
 
       # Generating a chipdb needs far more memory than a runner has to spare,
       # so the intermediate .bba is cached.  One cache per device: a rebuild
@@ -157,6 +184,7 @@ jobs:
             build/share/himbaechel/xilinx/chipdb-*.bin
             fasm2netlist/build/tileverilog
             fasm2netlist/build/lvs_equiv
+            yosys-install/
           retention-days: 1
 
   verify:
@@ -191,7 +219,7 @@ jobs:
       - name: Install runtime dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y yosys libz3-4 \
+          sudo apt-get install -y libz3-4 tcl libreadline8t64 \
             libboost-program-options-dev libboost-iostreams-dev libboost-thread-dev
 
       - name: Fetch the Project X-Ray database
@@ -202,7 +230,9 @@ jobs:
           name: tools
 
       - name: Restore the executable bit
-        run: chmod +x build/nextpnr-himbaechel fasm2netlist/build/tileverilog fasm2netlist/build/lvs_equiv
+        run: |
+          chmod +x build/nextpnr-himbaechel fasm2netlist/build/tileverilog fasm2netlist/build/lvs_equiv
+          chmod -R +x yosys-install/bin
 
       # Fail here, with a name that says what is wrong, rather than letting a
       # missing chipdb or an unloadable library surface as "place and route
@@ -216,6 +246,7 @@ jobs:
           test -s build/share/himbaechel/xilinx/chipdb-xc7a50t.bin
           test -s build/share/himbaechel/xilinx/chipdb-xc7vx485t.bin
           build/nextpnr-himbaechel --version
+          yosys-install/bin/yosys -V
           for t in fasm2netlist/build/tileverilog fasm2netlist/build/lvs_equiv; do
               # 126/127 mean "could not execute" -- anything else means it ran
               # and printed its usage, which is all this needs to establish.
@@ -229,7 +260,8 @@ jobs:
       - name: Build the bitstream and prove the extraction equals it
         env:
           PRJXRAY_DB: .deps/prjxray-db
-          YOSYS: yosys
+          # the pinned build from the tools job, never whatever apt has
+          YOSYS: yosys-install/bin/yosys
         run: bash scripts/verify_examples.sh "${{ matrix.design }}"
 
       - name: Upload the extraction
