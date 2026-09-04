@@ -48,6 +48,10 @@ DESIGNS=(
   "arty-blinky|.|examples/arty-blinky/blinky.v|blinky|examples/arty-blinky/blinky.xdc|xc7a35tcsg324-1|xc7a50t|artix7|-nobram"
   "vc707-hp-diffio|.|$EXAMPLES/vc707-hp-diffio/top.v|top|$EXAMPLES/vc707-hp-diffio/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|-nobram"
   "vc707-idelay|.|$EXAMPLES/vc707-idelay/top.v|top|$EXAMPLES/vc707-idelay/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|-nobram"
+  # A gigabit-transceiver reference clock buffer.  This was blocked -- nextpnr
+  # could not bind an IBUFDS_GTE2 to its pad -- until the site-name match in
+  # nextpnr's packer was corrected; it now places, extracts and proves.
+  "vc707-gtrefclk|.|examples/vc707-gtrefclk/top.v|top|examples/vc707-gtrefclk/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|-nobram"
   # The LiteX SoC: a SERV CPU with its BIOS in block RAM, its register file in
   # distributed RAM and carry chains throughout.  It was blocked until the tile
   # model learned to cut a block RAM at its boundary; it proves now, with the
@@ -78,12 +82,13 @@ NOT_YET=()
 #            pnr    place-and-route fails, with `marker` in the log
 #            equiv  it builds and extracts, but the equivalence check differs
 BLOCKED=(
-  "vc707-gtrefclk|.|examples/vc707-gtrefclk/top.v|top|examples/vc707-gtrefclk/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|pnr|failed to find IBUFDS_GTE2 site for pad|nextpnr cannot bind a gigabit-transceiver reference clock to its pad, so no GT design (LiteEth SGMII included) can be placed"
-  # The same blocker, on a real design rather than a forty-line reproducer: a
-  # picorv32 SoC with a gigabit MAC and a LiteEth SGMII PCS.  Both are kept
-  # because they answer different questions -- vc707-gtrefclk says whether the
-  # ONE binding works, this says whether a design that needs it then builds.
-  "vc707-ethmin|examples/vc707-ethmin|@sources.f|vc707_ethmin|vc707_ethmin.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|pnr|failed to find IBUFDS_GTE2 site for pad|nextpnr cannot bind a gigabit-transceiver reference clock to its pad; this SoC synthesises (5336 cells, 1840 flip-flops, 19 block RAMs, a GTXE2_CHANNEL) and stops there"
+  # The picorv32 SoC with a gigabit MAC and a LiteEth SGMII PCS.  Its original
+  # blocker -- the IBUFDS_GTE2 binding -- is fixed, and it now packs, places
+  # and routes 6851 cells; what stops it is timing.  The violations are inside
+  # one clock domain (MAC transmit into a block RAM), not the asynchronous
+  # crossings the XDC declares, so they are not simply constraints nextpnr
+  # ignores; they are a real hold-time result on a real design.
+  "vc707-ethmin|examples/vc707-ethmin|@sources.f|vc707_ethmin|vc707_ethmin.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|pnr|Hold/min time violation|nextpnr places and routes this SoC and then reports 18 hold-time violations, 14 of them on the MAC transmit path into a block RAM"
 )
 
 # --list prints the design names as JSON, so a CI matrix can be generated from
