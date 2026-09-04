@@ -55,7 +55,7 @@ NOT_YET=()
 #            equiv  it builds and extracts, but the equivalence check differs
 BLOCKED=(
   "vc707-gtrefclk|.|examples/vc707-gtrefclk/top.v|top|examples/vc707-gtrefclk/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|pnr|failed to find IBUFDS_GTE2 site for pad|nextpnr cannot bind a gigabit-transceiver reference clock to its pad, so no GT design (LiteEth SGMII included) can be placed"
-  "vc707-litex|examples/vc707-litex/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|equiv||every register is matched and both memory boundaries -- 39 distributed RAM ports and 17 block RAMs -- prove, but 94 register cones still differ, so this SoC is not yet proved equal to its synthesis. fasm2netlist extracts this design exactly (see examples/vc707-litex/README.md)"
+  "vc707-litex|examples/vc707-litex/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|equiv||every register is matched and every memory boundary proves -- 39 distributed RAM ports and 17 block RAMs -- and all but two cones are equal. The two that are not are the reset synchroniser, which waits on the MMCM's LOCKED: that signal reaches the interconnect boundary in the tile model and stops there, with no consumer, so the fabric's reset does not depend on it and the synthesis's does. Run lvs_equiv --explain to see it named"
 )
 
 # --list prints the design names as JSON, so a CI matrix can be generated from
