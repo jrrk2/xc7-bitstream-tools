@@ -179,8 +179,8 @@ jobs:
         with:
           submodules: false
 
-      - name: Fetch only the examples this job reads
-        run: git submodule update --init --depth 1 nextpnr
+      - name: Fetch only the submodules this job reads
+        run: git submodule update --init --depth 1 nextpnr litex-deps/pythondata-cpu-serv
 
       # nextpnr is built in another job and only run here, so this job needs
       # the libraries it was linked against even though it compiles nothing:
