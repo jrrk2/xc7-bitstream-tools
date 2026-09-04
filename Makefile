@@ -1,4 +1,4 @@
-.PHONY: help setup tools yosys nextpnr vc707-johnson arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: help setup tools yosys nextpnr check-fasm vc707-johnson arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 DESIGN ?= johnson_sonata
@@ -160,6 +160,7 @@ help:
 	  '  make verify-extraction V_*=...          Extract a bitstream and prove it equals its synthesis' \
 	  '  make verify-examples PRJXRAY_DB=...     Prove every eligible nextpnr example, and say what is not' \
 	  '  make verify-examples DESIGNS="a b"      ... or just the named ones, as the CI matrix does' \
+	  '  make check-fasm FASM=...                Fail if a FASM needs bits prjxray does not have' \
 	  '' \
 	  'Examples verify themselves by default; pass VERIFY=0 to skip that step.'
 
@@ -314,6 +315,22 @@ verify-extraction: fasm2netlist
 		--gate $(VERIFY_DIR)/$(V_NAME)/fabric.v --gate-top fabric \
 		--placement $(V_PLACE) --gold-json $(V_JSON) \
 		--db $(PRJXRAY_DB)/$(V_FAMILY) --device $(V_DEVICE) --quiet
+
+# A FASM can contain features prjxray has no bits for.  fasm2frames drops those
+# silently under XRAY_ALLOW_MISSING_FEATURES, so the bitstream is missing a
+# connection the router believed it had made and the board comes up dead in a
+# way nothing upstream reports.  This is the strict answer: assemble with the
+# override OFF and fail if anything does not resolve.
+#
+#   make check-fasm FASM=.verify/examples/vc707-litex/design.fasm
+# Defaults to the VC707, since that is the board these examples target;
+# CHECK_FAMILY and CHECK_PART override it for anything else.
+CHECK_FAMILY ?= virtex7
+CHECK_PART ?= xc7vx485tffg1761-2
+check-fasm:
+	@test -n "$(FASM)" || { echo "check-fasm needs FASM=..."; exit 2; }
+	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "PRJXRAY_DB must name a Project X-Ray database checkout"; exit 2; }
+	scripts/check_fasm_expressible.py $(PRJXRAY_DB)/$(CHECK_FAMILY) $(CHECK_PART) $(FASM)
 
 clean:
 	rm -rf .validation $(VERIFY_DIR)
