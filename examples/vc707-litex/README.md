@@ -34,13 +34,17 @@ and every remaining cone shown equivalent by SAT.
 
     2820 proved, 0 differ
 
+It is a proving example in `scripts/verify_examples.sh`, so CI fails if that
+stops being true.
+
 That result is a statement about one synthesis, and **which yosys built it
 matters** — two versions do not produce the same netlist, so they do not pose
-the same question:
+the same question. This is why yosys is pinned as a submodule and built from
+source rather than installed:
 
 | yosys | outcome |
 | --- | --- |
-| 0.63+173 (`66306a8ca`, oss-cad-suite) | 2820 proved, **0 differ** |
+| **0.63+173 (`66306a8ca`) — the pinned one** | 2820 proved, **0 differ** |
 | 0.64 (`8449dd470`, the-openroad-project) | 2784 proved, 36 differ |
 | 0.27+22 (`0f5e7c244`, f4pga conda) | nextpnr cannot place its netlist |
 
@@ -53,6 +57,9 @@ block-RAM work.
 `scripts/verify_examples.sh` prints the yosys and nextpnr versions it used, and
 writes them beside each design's artefacts in `toolchain`, so a result can be
 compared with the run that produced it rather than guessed at.
+
+Build the pinned yosys with `make yosys`; the sweep picks it up automatically
+if it is there, and falls back to whatever is on `PATH` if it is not.
 
 Both flows produce a bitstream that boots on the board. They are built from
 identical gateware, so each announces itself in the BIOS banner:

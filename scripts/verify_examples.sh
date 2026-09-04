@@ -29,16 +29,33 @@ esac
 : ${TILEVERILOG:=fasm2netlist/build/tileverilog}
 : ${LVS_EQUIV:=fasm2netlist/build/lvs_equiv}
 
-# name | sources | top | xdc | part | device | family
+# name | dir | sources | top | xdc | part | device | family | synth flags
+#
+# The same eight fields BLOCKED uses, so a design that stops being blocked
+# moves between the two tables unchanged.
+#
+# dir    working directory for synthesis, "." for the repository root.  It
+#        matters for designs whose Verilog $readmemh's its memory contents from
+#        a relative path: run yosys anywhere else and the ROM reads as zero,
+#        SILENTLY.
+# srcs   a list, or @file naming one (relative to dir).
+# synth  extra flags for synth_xilinx.  -nobram keeps a small example in LUTs
+#        where that is what it is meant to exercise; a design that means to use
+#        block RAM leaves it off.
 DESIGNS=(
-  "vc707-johnson|$EXAMPLES/vc707-johnson/top.v $EXAMPLES/vc707-johnson/counter25_core.v|top|$EXAMPLES/vc707-johnson/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7"
-  "vc707-multibufg|$EXAMPLES/vc707-multibufg/top.v|top|$EXAMPLES/vc707-multibufg/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7"
-  "arty-a35|$EXAMPLES/arty-a35/blinky.v|top|$EXAMPLES/arty-a35/arty.xdc|xc7a35tcsg324-1|xc7a50t|artix7"
-  "johnson-sonata|$EXAMPLES/sonata/johnson_sonata.v|johnson_sonata|$EXAMPLES/sonata/johnson_sonata.xdc|xc7a50tcsg324-1|xc7a50t|artix7"
-  "blinky-sonata|$EXAMPLES/sonata/blinky_sonata.v|blinky_sonata|$EXAMPLES/sonata/blinky_sonata.xdc|xc7a50tcsg324-1|xc7a50t|artix7"
-  "arty-blinky|examples/arty-blinky/blinky.v|blinky|examples/arty-blinky/blinky.xdc|xc7a35tcsg324-1|xc7a50t|artix7"
-  "vc707-hp-diffio|$EXAMPLES/vc707-hp-diffio/top.v|top|$EXAMPLES/vc707-hp-diffio/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7"
-  "vc707-idelay|$EXAMPLES/vc707-idelay/top.v|top|$EXAMPLES/vc707-idelay/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7"
+  "vc707-johnson|.|$EXAMPLES/vc707-johnson/top.v $EXAMPLES/vc707-johnson/counter25_core.v|top|$EXAMPLES/vc707-johnson/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|-nobram"
+  "vc707-multibufg|.|$EXAMPLES/vc707-multibufg/top.v|top|$EXAMPLES/vc707-multibufg/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|-nobram"
+  "arty-a35|.|$EXAMPLES/arty-a35/blinky.v|top|$EXAMPLES/arty-a35/arty.xdc|xc7a35tcsg324-1|xc7a50t|artix7|-nobram"
+  "johnson-sonata|.|$EXAMPLES/sonata/johnson_sonata.v|johnson_sonata|$EXAMPLES/sonata/johnson_sonata.xdc|xc7a50tcsg324-1|xc7a50t|artix7|-nobram"
+  "blinky-sonata|.|$EXAMPLES/sonata/blinky_sonata.v|blinky_sonata|$EXAMPLES/sonata/blinky_sonata.xdc|xc7a50tcsg324-1|xc7a50t|artix7|-nobram"
+  "arty-blinky|.|examples/arty-blinky/blinky.v|blinky|examples/arty-blinky/blinky.xdc|xc7a35tcsg324-1|xc7a50t|artix7|-nobram"
+  "vc707-hp-diffio|.|$EXAMPLES/vc707-hp-diffio/top.v|top|$EXAMPLES/vc707-hp-diffio/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|-nobram"
+  "vc707-idelay|.|$EXAMPLES/vc707-idelay/top.v|top|$EXAMPLES/vc707-idelay/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|-nobram"
+  # The LiteX SoC: a SERV CPU with its BIOS in block RAM, its register file in
+  # distributed RAM and carry chains throughout.  It was blocked until the tile
+  # model learned to cut a block RAM at its boundary; it proves now, with the
+  # yosys this repository pins.
+  "vc707-litex|examples/vc707-litex/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|"
 )
 
 # name | what the tile model would have to learn first.  Empty is the goal, not
@@ -65,7 +82,6 @@ NOT_YET=()
 #            equiv  it builds and extracts, but the equivalence check differs
 BLOCKED=(
   "vc707-gtrefclk|.|examples/vc707-gtrefclk/top.v|top|examples/vc707-gtrefclk/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|pnr|failed to find IBUFDS_GTE2 site for pad|nextpnr cannot bind a gigabit-transceiver reference clock to its pad, so no GT design (LiteEth SGMII included) can be placed"
-  "vc707-litex|examples/vc707-litex/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|equiv||this SoC PROVES COMPLETELY (2820 proved, 0 differ) when yosys 0.63+173 builds it, and shows 36 differences when yosys 0.64 does -- the two synthesise different netlists, so they are not the same question. Kept here rather than promoted because the answer depends on a toolchain this sweep does not pin; the row says UNBLOCKED whenever the yosys in use does prove it. The 0.64 differences sit in the SERV register file and the CSR block, around a distributed-RAM read address the fabric computes and the synthesis does not. Run lvs_equiv --explain to see them named"
 )
 
 # --list prints the design names as JSON, so a CI matrix can be generated from
@@ -132,32 +148,39 @@ echo
 printf '%-18s %10s %8s %8s   %s\n' DESIGN RESULT PROVED DIFFER NOTE
 printf '%.0s-' {1..70}; echo
 
+mkdir -p "$OUT"
 for row in "${DESIGNS[@]}"; do
-    IFS='|' read -r name srcs top xdc part device family <<< "$row"
+    IFS='|' read -r name dir srcs top xdc part device family synth <<< "$row"
     wanted "$name" || continue
-    d="$OUT/$name"; mkdir -p "$d"
+    d="$(cd "$OUT" && pwd)/$name"; mkdir -p "$d"
     log="$d/build.log"
+
+    # @file names a source list, read relative to dir
+    case "$srcs" in
+        @*) srcs="$(grep -v '^#' "$dir/${srcs#@}" | tr '\n' ' ')" ;;
+    esac
 
     { echo "yosys: ${yosys_version:-unknown}"
       echo "nextpnr: $("$NEXTPNR_BIN" --version 2>&1 | head -1)"; } > "$d/toolchain"
-    if ! "$YOSYS" -q -p "synth_xilinx -flatten -abc9 -nobram -arch xc7 -top $top; write_json $d/gold.json" \
-            $srcs >"$log" 2>&1; then
+    if ! ( cd "$dir" && "$YOSYS" -q -p \
+            "synth_xilinx -flatten -abc9 $synth -arch xc7 -top $top; write_json $d/gold.json" \
+            $srcs ) >"$log" 2>&1; then
         printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "synthesis failed, see $log"
         annotate error "$name" "synthesis failed"; tail_log "$log"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
     fi
-    if ! "$NEXTPNR_BIN" --device "$part" -o xdc="$xdc" --json "$d/gold.json" \
+    if ! "$NEXTPNR_BIN" --device "$part" -o xdc="$dir/$xdc" --json "$d/gold.json" \
             -o fasm="$d/design.fasm" -o placement="$d/placement.json" --router router2 >>"$log" 2>&1; then
         printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "place and route failed, see $log"
         annotate error "$name" "place and route failed"; tail_log "$log"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
     fi
     if ! "$TILEVERILOG" --fasm "$d/design.fasm" --db "$PRJXRAY_DB/$family" --device "$device" \
-            --xdc "$xdc" --part "$part" --out "$d/fabric.v" --model-out "$d/tile_model.v" >>"$log" 2>&1; then
+            --xdc "$dir/$xdc" --part "$part" --out "$d/fabric.v" --model-out "$d/tile_model.v" >>"$log" 2>&1; then
         printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "extraction failed, see $log"
         annotate error "$name" "extraction from the bitstream failed"; tail_log "$log"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
     fi
     # the design's own names, for reading when a result needs explaining
     "$TILEVERILOG" --fasm "$d/design.fasm" --db "$PRJXRAY_DB/$family" --device "$device" \
-        --xdc "$xdc" --part "$part" --placement "$d/placement.json" --gold-json "$d/gold.json" \
+        --xdc "$dir/$xdc" --part "$part" --placement "$d/placement.json" --gold-json "$d/gold.json" \
         --out "$d/fabric_named.v" >>"$log" 2>&1
     # -norename: without it write_verilog renames every internal object to
     # _<number>_, inventing names that appear in no other file.  The two
