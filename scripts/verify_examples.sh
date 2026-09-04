@@ -79,6 +79,11 @@ NOT_YET=()
 #            equiv  it builds and extracts, but the equivalence check differs
 BLOCKED=(
   "vc707-gtrefclk|.|examples/vc707-gtrefclk/top.v|top|examples/vc707-gtrefclk/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|pnr|failed to find IBUFDS_GTE2 site for pad|nextpnr cannot bind a gigabit-transceiver reference clock to its pad, so no GT design (LiteEth SGMII included) can be placed"
+  # The same blocker, on a real design rather than a forty-line reproducer: a
+  # picorv32 SoC with a gigabit MAC and a LiteEth SGMII PCS.  Both are kept
+  # because they answer different questions -- vc707-gtrefclk says whether the
+  # ONE binding works, this says whether a design that needs it then builds.
+  "vc707-ethmin|examples/vc707-ethmin|@sources.f|vc707_ethmin|vc707_ethmin.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|pnr|failed to find IBUFDS_GTE2 site for pad|nextpnr cannot bind a gigabit-transceiver reference clock to its pad; this SoC synthesises (5336 cells, 1840 flip-flops, 19 block RAMs, a GTXE2_CHANNEL) and stops there"
 )
 
 # --list prints the design names as JSON, so a CI matrix can be generated from
