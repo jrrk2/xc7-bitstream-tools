@@ -154,7 +154,7 @@ for row in "${DESIGNS[@]}"; do
 
     # @file names a source list, read relative to dir
     case "$srcs" in
-        @*) srcs="$(grep -v '^#' "$dir/${srcs#@}" | tr '\n' ' ')" ;;
+        @*) srcs="$(sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$dir/${srcs#@}" | tr '\n' ' ')" ;;
     esac
 
     { echo "yosys: ${yosys_version:-unknown}"
@@ -225,7 +225,7 @@ for row in ${BLOCKED[@]+"${BLOCKED[@]}"}; do
 
     # @file names a source list, read relative to dir
     case "$srcs" in
-        @*) srcs="$(grep -v '^#' "$dir/${srcs#@}" | tr '\n' ' ')" ;;
+        @*) srcs="$(sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$dir/${srcs#@}" | tr '\n' ' ')" ;;
     esac
 
     { echo "yosys: ${yosys_version:-unknown}"
