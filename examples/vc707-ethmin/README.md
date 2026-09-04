@@ -19,22 +19,41 @@ the parts of the fabric a small example never reaches:
 | clocking | 3 `MMCME2_ADV`, 8 `BUFG` |
 | transceiver | 1 `GTXE2_CHANNEL`, 1 `IBUFDS_GTE2` |
 
-## Status: blocked, at place-and-route
+## Status: no bitstream yet, and three reasons why
 
-It synthesises cleanly and then stops:
+**There is no ethmin bitstream.** The design gets further than it used to, and
+it is worth being exact about where it stops, because the answer has changed
+twice and each stage is a different kind of problem.
 
-    ERROR: failed to find IBUFDS_GTE2 site for pad 'X394Y341/IPAD_X0Y0.PAD'
+1. **The GT reference clock — fixed.** nextpnr could not bind an `IBUFDS_GTE2`
+   to its pad, so nothing needing a transceiver could be packed at all. It
+   matched site names against a prefix (`"IPAD_"`) that the chipdb does not
+   use (`"IPAD"`); corrected in the nextpnr submodule. The forty-line
+   reproducer next door, `examples/vc707-gtrefclk`, now places, routes,
+   extracts and proves.
 
-nextpnr-himbaechel cannot bind a gigabit-transceiver reference clock to its
-pad, so nothing needing a GT can be placed. `examples/vc707-gtrefclk` is a
-forty-line reproducer of the same bug; both are in the sweep because they
-answer different questions -- that one asks whether the single binding works,
-this one asks whether a design that needs it then builds. The sweep runs both
-every time and says UNBLOCKED when they start getting further.
+2. **Hold-time violations — the sweep stops here.** The design packs, places
+   and routes 6851 cells, then nextpnr reports 18 hold violations. Fourteen
+   are inside one clock domain, on the MAC transmit path into a block RAM, so
+   they are *not* the asynchronous crossings this XDC declares with
+   `set_false_path` and nextpnr ignores; they look like a real timing result.
+   `--timing-allow-fail` gets past them and produces a 4.5 MB FASM.
 
-Nothing downstream of place-and-route has been exercised here yet: no
-bitstream, no extraction, no equivalence proof. That is the point of keeping
-it in the table rather than in a branch.
+3. **The database has no bits for two clock muxes.** Given that FASM,
+   `fasm2frames` cannot assemble it:
+
+        Segment DB HCLK_CMT_L, key HCLK_CMT_L.HCLK_CMT_CK_IN13.HCLK_CMT_MUX_CLK_7 not found
+        Segment DB HCLK_CMT_L, key HCLK_CMT_L.HCLK_CMT_CK_IN12.HCLK_CMT_MUX_CLK_5 not found
+
+   The Project X-Ray database documents many `HCLK_CMT_CK_IN13.*` pips but no
+   `HCLK_CMT_MUX_CLK_*`: the MMCM clock-output feeds into the horizontal clock
+   row are un-fuzzed. Nothing in this repository can work around that -- the
+   bits are simply not known -- so a bitstream needs either a database that
+   covers those pips or a clocking arrangement that avoids them.
+
+So nothing downstream of place-and-route is exercised: no bitstream, no
+extraction, no equivalence proof. Keeping the design in the sweep rather than
+in a branch is what makes each of these visible when it moves.
 
 ## Provenance
 
