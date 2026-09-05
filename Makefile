@@ -1,4 +1,4 @@
-.PHONY: help setup tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-johnson arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: help setup tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 DESIGN ?= johnson_sonata
@@ -59,6 +59,40 @@ ARTY_PART ?= xc7a35tcsg324-1
 ARTY_DEVICE ?= xc7a50t
 ARTY_FAMILY ?= artix7
 ARTY_OUT ?= blinky_arty.bit
+
+# The DDR3 LiteX SoC.  Vivado first and deliberately: a memory controller
+# calibrates against real silicon timing, so "does the design work" and "does
+# the open flow reproduce it" have to stay separate questions -- a board that
+# fails to train its DDR tells you nothing about which half is at fault.
+LITEX_DDR_DIR      ?= examples/vc707-litex-ddr
+LITEX_DDR_GATEWARE ?= $(LITEX_DDR_DIR)/gateware
+LITEX_DDR_TOP      ?= xilinx_vc707
+LITEX_DDR_CPU      ?= serv
+
+vc707-litex-ddr-gen:
+	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
+	@$(PYTHON) -c 'import litedram' 2>/dev/null || { \
+	  echo "LiteDRAM is not installed in $(PYTHON):"; \
+	  echo "  $(PYTHON) -m pip install -e litex-deps/litedram"; exit 2; }
+	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DDR_DIR)/vc707_litex_ddr.py \
+		--cpu-type $(LITEX_DDR_CPU) --flow generated --no-compile-gateware --build \
+		--output-dir $(LITEX_DDR_DIR)/build-generated
+	cp $(LITEX_DDR_DIR)/build-generated/gateware/$(LITEX_DDR_TOP).v \
+	   $(LITEX_DDR_DIR)/build-generated/gateware/$(LITEX_DDR_TOP).xdc \
+	   $(LITEX_DDR_DIR)/build-generated/gateware/$(LITEX_DDR_TOP)_*.init $(LITEX_DDR_GATEWARE)/
+	@echo "refreshed $(LITEX_DDR_GATEWARE)"
+
+# Needs Vivado on PATH; VIVADO_BIN points at its bin directory if it is not.
+VIVADO_BIN ?= /NFS/apps/Xilinx/Vivado/2020.1/bin
+vc707-litex-ddr-vivado:
+	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
+	PATH="$(VIVADO_BIN):$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DDR_DIR)/vc707_litex_ddr.py \
+		--cpu-type $(LITEX_DDR_CPU) --flow vivado --build \
+		--output-dir $(LITEX_DDR_DIR)/build-vivado
+	@echo "built $(LITEX_DDR_DIR)/build-vivado/gateware/$(LITEX_DDR_TOP).bit"
+
+vc707-litex-ddr-flash:
+	$(OFL) --cable digilent --freq 15000000 $(LITEX_DDR_DIR)/build-vivado/gateware/$(LITEX_DDR_TOP).bit
 
 # The minimal LiteX SoC.  LITEX_GATEWARE holds the generated Verilog, checked
 # in so a build needs neither LiteX nor a RISC-V toolchain; `make vc707-litex-gen`
@@ -191,6 +225,8 @@ help:
 	  '  make vc707-litex-verify PRJXRAY_DB=...   Prove that SoC equals its synthesis, as CI does' \
 	  '  make vc707-ethmin PRJXRAY_DB=...         Build the gigabit-Ethernet SoC (picorv32 + LiteEth SGMII)' \
 	  '  make vc707-ethmin-flash                  ...and flash it to the board' \
+	  '  make vc707-litex-ddr-vivado              Build the DDR3 SoC with Vivado (the golden reference)' \
+	  '  make vc707-litex-ddr-gen                 Regenerate its gateware from the LiteX sources' \
 	  '  make sonata FASM=... PRJXRAY_DB=...     Convert an Artix-7 FASM to Sonata UF2' \
 	  '  make vc707 VC707_FASM=... PRJXRAY_DB=... Convert a Virtex-7 FASM to raw bitstream' \
 	  '  make validate-bitstream PART=... BIT=... TESTBENCH=... PRJXRAY_DB=...' \

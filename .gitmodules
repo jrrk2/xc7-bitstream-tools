@@ -38,3 +38,6 @@
 	# working tree is ignored: a change to the pinned COMMIT still shows up,
 	# which is the thing that would change the results.
 	ignore = dirty
+[submodule "litex-deps/litedram"]
+	path = litex-deps/litedram
+	url = https://github.com/enjoy-digital/litedram
