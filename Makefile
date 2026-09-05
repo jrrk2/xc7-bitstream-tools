@@ -1,4 +1,4 @@
-.PHONY: help setup tools yosys nextpnr check-fasm vc707-johnson arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: help setup tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-johnson arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 DESIGN ?= johnson_sonata
@@ -87,6 +87,45 @@ DESIGNS ?=
 TILEVERILOG ?= $(F2N_DIR)/build/tileverilog
 LVS_EQUIV ?= $(F2N_DIR)/build/lvs_equiv
 
+# ethmin: a picorv32 SoC with a gigabit MAC and a LiteEth SGMII PCS on a GTX.
+# Everything it needs is in this repository -- see examples/vc707-ethmin.
+#
+# --timing-allow-fail is deliberate and is the design's one outstanding fault:
+# nextpnr places and routes it and then reports 18 hold-time violations, most
+# on the MAC transmit path into a block RAM.  The bitstream is built anyway so
+# the rest of the flow can be exercised on hardware, where it answers arping;
+# treat a run of this target as "does it still build and come up", not as a
+# design that meets timing.
+ETHMIN_DIR  ?= examples/vc707-ethmin
+ETHMIN_TOP  ?= vc707_ethmin
+ETHMIN_PART ?= xc7vx485tffg1761-2
+ETHMIN_OUT  ?= ethmin_vc707.bit
+# One line, no continuations: a backslash inside the quoted yosys script is
+# passed straight through and yosys reports it as an unknown command.
+ETHMIN_SRCS := $(shell sed -e '/^[[:space:]]*\#/d' -e 's/[[:space:]][[:space:]]*\#.*$$//' -e '/^[[:space:]]*$$/d' examples/vc707-ethmin/sources.f | tr '\n' ' ')
+
+vc707-ethmin: fasm2netlist nextpnr
+	@scripts/pinned_yosys.sh >/dev/null
+	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "PRJXRAY_DB must name a Project X-Ray database checkout"; exit 2; }
+	cd $(ETHMIN_DIR) && $(PINNED_YOSYS) -q -p 'read_verilog -sv $(ETHMIN_SRCS); synth_xilinx -flatten -abc9 -arch xc7 -top $(ETHMIN_TOP); write_json $(ETHMIN_TOP).json'
+	$(NEXTPNR_BIN) --device $(ETHMIN_PART) -o xdc=$(ETHMIN_DIR)/$(ETHMIN_TOP).xdc \
+		--json $(ETHMIN_DIR)/$(ETHMIN_TOP).json \
+		-o fasm=$(ETHMIN_DIR)/$(ETHMIN_TOP).fasm \
+		-o placement=$(ETHMIN_DIR)/$(ETHMIN_TOP)_placement.json \
+		--router router2 --timing-allow-fail
+	scripts/check_fasm_expressible.py $(PRJXRAY_DB)/virtex7 $(ETHMIN_PART) $(ETHMIN_DIR)/$(ETHMIN_TOP).fasm
+	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 \
+		--part $(ETHMIN_PART) --db $(PRJXRAY_DB) \
+		--fasm $(ETHMIN_DIR)/$(ETHMIN_TOP).fasm --output $(ETHMIN_OUT)
+	@echo "built $(ETHMIN_OUT) -- flash it with 'make vc707-ethmin-flash'"
+
+# The board this repository targets drives JTAG through the on-board Digilent
+# cable; 15 MHz is what it is reliable at here.
+OFL ?= openFPGALoader
+vc707-ethmin-flash:
+	@test -f $(ETHMIN_OUT) || { echo "no $(ETHMIN_OUT); run 'make vc707-ethmin' first"; exit 2; }
+	$(OFL) --cable digilent --freq 15000000 $(ETHMIN_OUT)
+
 vc707-litex: fasm2netlist nextpnr
 	@scripts/pinned_yosys.sh >/dev/null
 	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "PRJXRAY_DB must name a Project X-Ray database checkout"; exit 2; }
@@ -150,6 +189,8 @@ help:
 	  '  make vc707-litex PRJXRAY_DB=...          Build the LiteX SoC from its checked-in gateware, and extract it' \
 	  '  make vc707-litex-gen [LITEX_FLOW=vivado] Regenerate that gateware from the LiteX sources' \
 	  '  make vc707-litex-verify PRJXRAY_DB=...   Prove that SoC equals its synthesis, as CI does' \
+	  '  make vc707-ethmin PRJXRAY_DB=...         Build the gigabit-Ethernet SoC (picorv32 + LiteEth SGMII)' \
+	  '  make vc707-ethmin-flash                  ...and flash it to the board' \
 	  '  make sonata FASM=... PRJXRAY_DB=...     Convert an Artix-7 FASM to Sonata UF2' \
 	  '  make vc707 VC707_FASM=... PRJXRAY_DB=... Convert a Virtex-7 FASM to raw bitstream' \
 	  '  make validate-bitstream PART=... BIT=... TESTBENCH=... PRJXRAY_DB=...' \
