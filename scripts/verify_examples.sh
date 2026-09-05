@@ -11,14 +11,6 @@
 # defaults from the Makefile that calls this).
 set -u -o pipefail
 
-# The pinned yosys, and nothing else unless you say so.  Which yosys
-# synthesised a design decides what this sweep is even asking, so a run with
-# the wrong one does not produce a worse answer, it answers a different
-# question while looking identical.  scripts/pinned_yosys.sh resolves it,
-# checks it against the submodule this repository records, and refuses
-# anything else; YOSYS_UNPINNED=1 is the way to mean it on purpose.
-YOSYS=$("$(dirname "$0")/pinned_yosys.sh") || exit 2
-export YOSYS
 : ${NEXTPNR_BIN:=build/nextpnr-himbaechel}
 : ${PRJXRAY_DB:=.deps/prjxray-db}
 : ${EXAMPLES:=nextpnr/himbaechel/uarch/xilinx/examples}
@@ -110,6 +102,15 @@ if [ "${1:-}" = "--list" ]; then
     printf ']\n'
     exit 0
 fi
+
+# The pinned yosys, and nothing else unless you say so.  Which yosys
+# synthesised a design decides what this sweep is even asking, so a run with
+# the wrong one does not produce a worse answer, it answers a different
+# question while looking identical.  scripts/pinned_yosys.sh resolves it,
+# checks it against the submodule this repository records, and refuses
+# anything else; YOSYS_UNPINNED=1 is the way to mean it on purpose.
+YOSYS=$("$(dirname "$0")/pinned_yosys.sh") || exit 2
+export YOSYS
 
 WANTED=("$@")
 wanted() {
