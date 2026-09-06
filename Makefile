@@ -1,4 +1,4 @@
-.PHONY: help setup tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: help setup tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 DESIGN ?= johnson_sonata
@@ -18,6 +18,18 @@ PYTHON ?= $(abspath .venv/bin/python)
 NEXTPNR_DIR ?= nextpnr
 NEXTPNR_BUILD ?= build
 NEXTPNR_BIN ?= $(NEXTPNR_BUILD)/nextpnr-himbaechel
+
+# HeAP trades wirelength against timing, and its default weight is too low for
+# a design whose I/O is pinned at opposite ends of the die: the DDR3+SGMII SoC
+# placed its 125 MHz GMII datapath ~76 rows from the transceiver and came out
+# at 60-120 MHz across runs of IDENTICAL RTL -- a 2x lottery, with 78% of the
+# critical path in wire.  At weight 60 the same netlist reaches 181/219 MHz.
+#
+# This is not tuning for one design.  Any design here with a fast datapath and
+# distant pins is exposed to the same lottery; Vivado's placer closes 125 MHz
+# on the very netlist nextpnr was failing, so the deficit was never the
+# netlist.  Override for experiments: NEXTPNR_FLAGS=
+NEXTPNR_FLAGS ?= --placer-heap-timingweight 60
 # yosys is pinned as a submodule and built from source, because the answer the
 # equivalence check gives depends on which yosys asked the question: the LiteX
 # SoC proves completely under the pinned one and shows 36 differences under
@@ -105,6 +117,10 @@ vc707-litex-ddr-flash:
 # reads as zero without a word of complaint.
 LITEX_ETH_DIR  ?= examples/vc707-litex-eth
 LITEX_DDRETH_DIR ?= examples/vc707-litex-ddr-eth
+LITEX_DDRETHMIN_DIR ?= examples/vc707-litex-ddr-ethmin
+LITEX_DDRETHMIN_OUT ?= litex_ddr_ethmin_vc707.bit
+VEXRISCV_V     ?= $(CURDIR)/litex-deps/pythondata-cpu-vexriscv/pythondata_cpu_vexriscv/verilog/VexRiscv.v
+ETHMIN_PHY_V   ?= $(CURDIR)/examples/vc707-ethmin/rtl/liteeth_sgmii_phy.v
 LITEX_DIR      ?= examples/vc707-litex
 LITEX_GATEWARE ?= $(LITEX_DIR)/gateware
 LITEX_TOP      ?= xilinx_vc707
@@ -152,7 +168,7 @@ vc707-ethmin: fasm2netlist nextpnr
 		--json $(ETHMIN_DIR)/$(ETHMIN_TOP).json \
 		-o fasm=$(ETHMIN_DIR)/$(ETHMIN_TOP).fasm \
 		-o placement=$(ETHMIN_DIR)/$(ETHMIN_TOP)_placement.json \
-		--router router2 --timing-allow-fail
+		--router router2 $(NEXTPNR_FLAGS) --timing-allow-fail
 	scripts/check_fasm_expressible.py $(PRJXRAY_DB)/virtex7 $(ETHMIN_PART) $(ETHMIN_DIR)/$(ETHMIN_TOP).fasm
 	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 \
 		--part $(ETHMIN_PART) --db $(PRJXRAY_DB) \
@@ -176,7 +192,7 @@ vc707-litex: fasm2netlist nextpnr
 	$(NEXTPNR_BIN) --device $(LITEX_PART) -o xdc=$(LITEX_GATEWARE)/$(LITEX_TOP).xdc \
 		--json $(LITEX_GATEWARE)/$(LITEX_TOP).json \
 		-o fasm=$(LITEX_GATEWARE)/$(LITEX_TOP).fasm \
-		-o placement=$(LITEX_GATEWARE)/$(LITEX_TOP)_placement.json --router router2
+		-o placement=$(LITEX_GATEWARE)/$(LITEX_TOP)_placement.json --router router2 $(NEXTPNR_FLAGS)
 	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 \
 		--part $(LITEX_PART) --db $(PRJXRAY_DB) --fasm $(LITEX_GATEWARE)/$(LITEX_TOP).fasm --output $(LITEX_OUT)
 	@echo
@@ -226,6 +242,8 @@ help:
 	  '  make yosys                              Build the pinned yosys (the one the results are quoted for)' \
 	  '  make vc707-johnson PRJXRAY_DB=...        Build VC707 Johnson from source to raw bitstream' \
 	  '  make vc707-telegraph PRJXRAY_DB=...      Build VC707 telegraph: UART "JRRK" + heartbeat LED' \
+	  '  make vc707-litex-ddr-ethmin PRJXRAY_DB=... LiteX SoC with DDR3 + gigabit ethernet, open flow' \
+	  '  make vc707-litex-ddr-ethmin-vivado-pnr    Place that same netlist in Vivado, to compare placers' \
 	  '  make arty-blinky PRJXRAY_DB=...          Build the Arty A7 blinky (the carry-chain example)' \
 	  '  make vc707-litex PRJXRAY_DB=...          Build the LiteX SoC from its checked-in gateware, and extract it' \
 	  '  make vc707-litex-gen [LITEX_FLOW=vivado] Regenerate that gateware from the LiteX sources' \
@@ -280,7 +298,7 @@ vc707-johnson: tools nextpnr
 	@scripts/pinned_yosys.sh >/dev/null
 	cd $(VC707_DIR) && $(PINNED_YOSYS) -p 'synth_xilinx -flatten -abc9 -nobram -arch xc7 -top top; write_json johnson.json' top.v counter25_core.v
 	$(NEXTPNR_BIN) --device $(VC707_PART) -o xdc=$(VC707_DIR)/top.xdc --json $(VC707_DIR)/johnson.json \
-		-o fasm=$(VC707_DIR)/johnson.fasm -o placement=$(VC707_DIR)/johnson_placement.json --router router2
+		-o fasm=$(VC707_DIR)/johnson.fasm -o placement=$(VC707_DIR)/johnson_placement.json --router router2 $(NEXTPNR_FLAGS)
 	$(MAKE) vc707 VC707_FASM=$(VC707_DIR)/johnson.fasm PRJXRAY_DB=$(PRJXRAY_DB) VC707_OUT=$(VC707_OUT)
 ifeq ($(VERIFY),1)
 	$(MAKE) verify-extraction V_NAME=vc707-johnson V_FASM=$(VC707_DIR)/johnson.fasm \
@@ -299,7 +317,7 @@ vc707-telegraph: tools nextpnr
 	@scripts/pinned_yosys.sh >/dev/null
 	cd $(TELEGRAPH_DIR) && $(PINNED_YOSYS) -p 'synth_xilinx -flatten -abc9 -nobram -arch xc7 -top top; write_json telegraph.json' top.v telegraph_core.v
 	$(NEXTPNR_BIN) --device $(VC707_PART) -o xdc=$(TELEGRAPH_DIR)/top.xdc --json $(TELEGRAPH_DIR)/telegraph.json \
-		-o fasm=$(TELEGRAPH_DIR)/telegraph.fasm -o placement=$(TELEGRAPH_DIR)/telegraph_placement.json --router router2
+		-o fasm=$(TELEGRAPH_DIR)/telegraph.fasm -o placement=$(TELEGRAPH_DIR)/telegraph_placement.json --router router2 $(NEXTPNR_FLAGS)
 	$(MAKE) vc707 VC707_FASM=$(TELEGRAPH_DIR)/telegraph.fasm PRJXRAY_DB=$(PRJXRAY_DB) VC707_OUT=$(TELEGRAPH_OUT)
 ifeq ($(VERIFY),1)
 	$(MAKE) verify-extraction V_NAME=vc707-telegraph V_FASM=$(TELEGRAPH_DIR)/telegraph.fasm \
@@ -362,6 +380,79 @@ vc707-litex-ddr-eth-vivado:
 vc707-litex-eth-flash-vivado:
 	$(OFL) --cable digilent --freq 15000000 $(LITEX_ETH_DIR)/build-vivado/gateware/$(LITEX_TOP).bit
 
+# DDR3 + the SGMII PCS taken from ethmin's wrapper rather than generated by
+# LiteX.  This is the variant the open flow can route, so its golden build is
+# the reference the open flow's bitstream is graded against -- and the one
+# that says what the GMII timing looks like when placement is done properly.
+# The result of 2026-09-06: a LiteX SoC with DDR3 *and* a working gigabit
+# link, built entirely by yosys, nextpnr-himbaechel and prjxray.  On hardware
+# it calibrates the SODIMM, passes memtest, brings up 1000BASE-X over the GTX
+# and network-boots over it.
+#
+# Two things make it work, and neither is obvious:
+#   * --with-ethmin-phy, so the SGMII PCS comes from examples/vc707-ethmin's
+#     wrapper rather than LiteX's K7_1000BASEX.  Same PCS; the difference is
+#     its clocking, and LiteX's does not route here.
+#   * NEXTPNR_FLAGS' placer timing weight (see the top of this file).  At the
+#     default the GMII datapath lands 60-120 MHz across identical runs.
+vc707-litex-ddr-ethmin: fasm2netlist nextpnr
+	@scripts/pinned_yosys.sh >/dev/null
+	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "PRJXRAY_DB must name a Project X-Ray database checkout"; exit 2; }
+	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
+	@$(PYTHON) -c 'import liteeth, litedram, pythondata_cpu_vexriscv' 2>/dev/null || { \
+	  echo "needs LiteEth, LiteDRAM and pythondata-cpu-vexriscv in $(PYTHON)"; exit 2; }
+	rm -rf $(LITEX_DDRETHMIN_DIR)/build-openXC7
+	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
+		--with-led-chaser --cpu-type vexriscv --with-ddr --with-ethmin-phy \
+		--flow openXC7 --no-compile-gateware --build \
+		--output-dir $(LITEX_DDRETHMIN_DIR)/build-openXC7
+	cd $(LITEX_DDRETHMIN_DIR)/build-openXC7/gateware && $(PINNED_YOSYS) -q -p \
+		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+		$(VEXRISCV_V) $(ETHMIN_PHY_V) $(LITEX_TOP).v
+	$(NEXTPNR_BIN) --device $(LITEX_PART) \
+		-o xdc=$(LITEX_DDRETHMIN_DIR)/build-openXC7/gateware/$(LITEX_TOP).xdc \
+		--json $(LITEX_DDRETHMIN_DIR)/build-openXC7/gateware/$(LITEX_TOP).json \
+		-o fasm=$(LITEX_DDRETHMIN_DIR)/build-openXC7/gateware/$(LITEX_TOP).fasm \
+		--router router2 $(NEXTPNR_FLAGS)
+	$(MAKE) check-fasm FASM=$(LITEX_DDRETHMIN_DIR)/build-openXC7/gateware/$(LITEX_TOP).fasm PRJXRAY_DB=$(PRJXRAY_DB)
+	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 --part $(LITEX_PART) \
+		--db $(PRJXRAY_DB) --fasm $(LITEX_DDRETHMIN_DIR)/build-openXC7/gateware/$(LITEX_TOP).fasm \
+		--output $(LITEX_DDRETHMIN_OUT)
+	@echo "built $(LITEX_DDRETHMIN_OUT) -- flash with 'make vc707-litex-ddr-ethmin-flash'"
+
+vc707-litex-ddr-ethmin-flash:
+	$(OFL) --cable digilent --freq 15000000 $(LITEX_DDRETHMIN_OUT)
+
+# Place and route the OPEN FLOW's own netlist in Vivado.  This is how the
+# placer was identified as the deficit: same yosys netlist, same constraints,
+# only the placer differs.  Vivado met 125 MHz where nextpnr reached 78.8, and
+# its bitstream ran on hardware -- so the netlist was never the problem.
+# Writes timing.rpt, clocks.rpt and a routed checkpoint for comparison.
+vc707-litex-ddr-ethmin-vivado-pnr:
+	@test -f $(LITEX_DDRETHMIN_DIR)/build-openXC7/gateware/$(LITEX_TOP).v || { \
+	  echo "run 'make vc707-litex-ddr-ethmin' first"; exit 2; }
+	@scripts/pinned_yosys.sh >/dev/null
+	mkdir -p $(LITEX_DDRETHMIN_DIR)/vivado-pnr/edif
+	cd $(LITEX_DDRETHMIN_DIR)/build-openXC7/gateware && $(PINNED_YOSYS) -q -p \
+		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); delete t:$$scopeinfo; write_edif -pvector bra $(CURDIR)/$(LITEX_DDRETHMIN_DIR)/vivado-pnr/edif/$(LITEX_TOP).edif' \
+		$(VEXRISCV_V) $(ETHMIN_PHY_V) $(LITEX_TOP).v
+	$(VIVADO_BIN)/vivado -mode batch -nojournal -nolog -source scripts/vivado_pnr_netlist.tcl \
+		-tclargs $(CURDIR)/$(LITEX_DDRETHMIN_DIR)/vivado-pnr/edif/$(LITEX_TOP).edif \
+		$(CURDIR)/$(LITEX_DDRETHMIN_DIR)/build-openXC7/gateware/$(LITEX_TOP).xdc \
+		$(CURDIR)/$(LITEX_DDRETHMIN_DIR)/vivado-pnr $(LITEX_PART)
+	@echo "see $(LITEX_DDRETHMIN_DIR)/vivado-pnr/timing.rpt"
+
+vc707-litex-ddr-ethmin-vivado:
+	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
+	@$(PYTHON) -c 'import liteeth, litedram' 2>/dev/null || { \
+	  echo "LiteEth and LiteDRAM must both be installed in $(PYTHON)"; exit 2; }
+	rm -rf $(LITEX_DDRETHMIN_DIR)/build-vivado
+	$(LITEX_GEN) --with-ddr --with-ethmin-phy --output-dir $(LITEX_DDRETHMIN_DIR)/build-vivado
+	@echo "built $(LITEX_DDRETHMIN_DIR)/build-vivado/gateware/$(LITEX_TOP).bit"
+
+vc707-litex-ddr-ethmin-flash-vivado:
+	$(OFL) --cable digilent --freq 15000000 $(LITEX_DDRETHMIN_DIR)/build-vivado/gateware/$(LITEX_TOP).bit
+
 vc707-litex-ddr-eth-flash-vivado:
 	$(OFL) --cable digilent --freq 15000000 $(LITEX_DDRETH_DIR)/build-vivado/gateware/$(LITEX_TOP).bit
 
@@ -372,7 +463,7 @@ arty-blinky: tools nextpnr
 	@scripts/pinned_yosys.sh >/dev/null
 	cd $(ARTY_DIR) && $(PINNED_YOSYS) -p 'synth_xilinx -flatten -abc9 -nobram -arch xc7 -top blinky; write_json blinky.json' blinky.v
 	$(NEXTPNR_BIN) --device $(ARTY_PART) -o xdc=$(ARTY_DIR)/blinky.xdc --json $(ARTY_DIR)/blinky.json \
-		-o fasm=$(ARTY_DIR)/blinky.fasm -o placement=$(ARTY_DIR)/blinky_placement.json --router router2
+		-o fasm=$(ARTY_DIR)/blinky.fasm -o placement=$(ARTY_DIR)/blinky_placement.json --router router2 $(NEXTPNR_FLAGS)
 	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 \
 		--part $(ARTY_PART) --db $(PRJXRAY_DB) --fasm $(ARTY_DIR)/blinky.fasm --output $(ARTY_OUT)
 ifeq ($(VERIFY),1)

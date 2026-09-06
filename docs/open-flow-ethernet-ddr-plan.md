@@ -74,52 +74,54 @@ With the transceiver pinned, nextpnr's clocking pass places the PHY's MMCMs
 itself from the dedicated GT->MMCM routing. Copying ethmin's other eleven LOCs
 is unnecessary; nextpnr overrides the MMCM ones and says so.
 
-## What is left: placement locality, not routing
+## Resolved (2026-09-06): the placer's timing weight
 
-The design routes and produces a bitstream. It does not meet timing on the
-GMII clocks, and the reason is where the logic sits rather than how much of it
-there is:
+The GMII clocks failed at 60-120 MHz across runs of identical RTL, with 78% of
+the critical path in wire and the datapath ~76 rows from the transceiver. Three
+hypotheses were tested and two were wrong:
 
-    eth_tx_clk critical path: 1.10 ns logic, 3.92 ns routing
-    (324,96) -> (350,149) -> (330,73)
+* **Clock buffer placement.** Constraining the BUFGs and MMCMs to the sites
+  Vivado chose for this very design made it *worse* -- eth_tx_clk 60.0 MHz
+  against 91.3 unconstrained. Not the clocking.
+* **The netlist.** Vivado place-and-routed the *same yosys EDIF* to 125 MHz on
+  both GMII clocks, and its bitstream ran on hardware: link up, ARP resolved,
+  netboot completed. So synthesis, the PHY integration and the MAC were all
+  correct, and only the placer differed. (`make
+  vc707-litex-ddr-ethmin-vivado-pnr` reproduces this.)
+* **The placer's tuning.** HeAP trades wirelength against timing and its
+  default weight is too low here. `--placer-heap-timingweight 60` takes the
+  same netlist to **181.69 MHz (tx) and 219.11 MHz (rx)**, every clock passing,
+  no hold violations -- and on hardware the link comes up and the board
+  network-boots. It is now the default in `NEXTPNR_FLAGS`.
 
-78% wire, on a path that hops ~76 rows. The SGMII pins and the GT quad are in
-the bottom right of the die; the eth datapath should be beside them and is
-not. Two runs of identical RTL gave `eth_tx_clk` 120.1 MHz and 91.3 MHz -- a
-24% swing decided by nothing but where the placer happened to scatter it.
+An earlier version of this document put region-constraint support
+(`create_pblock`) at the top of the list, reasoning from the critical-path
+report that a clock domain needed confining near its pins. That was wrong, and
+expensively so: the fix was a flag that already existed. Region constraints may
+still be worth having, but they are not what this needed, and hand-partitioning
+the die is doing the placer's job for it.
 
-The same pathology puts clock sources far from their loads: in the DDR-only
-build 97% of 12642 slices sat in Y300-349 while the MMCM was at tile Y4, the
-BUFGs at Y17-25 and the block RAMs at Y62-69.
+## What is left
 
-### 1. Region constraints (do this first)
-
-`himbaechel/uarch/xilinx/xdc.cc` understands only `create_clock`,
-`set_property` and `set_multicycle_path`. There is no `create_pblock`, so
-there is currently no way to say "this clock domain belongs in the bottom
-right". Adding that -- and honouring it in the placer -- fixes the cause
-rather than the symptom, removes the run-to-run lottery, and helps every
-design through this flow rather than this one. Vivado's own implementation of
-the LiteEth SoC uses `create_pblock CLKAG_*` groups for exactly this.
-
-Re-rolling placer seeds until one passes is not a substitute; it is the same
-lottery with extra steps.
-
-### 2. The .IN bits when both halves of a tile are inputs
+### 1. The .IN bits when both halves of a tile are inputs
 
 prjxray's `IOB_Y0...IN` and `IOB_Y1...IN` share bit `39_01` with opposite
 polarity -- it selects *which* half is the input, so "both halves are inputs"
-cannot be expressed, and fasm2frames rejects it as inconsistent. Vivado emits
-no `.IN` bits at all for such a tile and relies on `IN_ONLY`. The writer
-should do the same. Worked around for now by driving the board PHY's unused
-management pins so only one half of that tile is an input.
+cannot be expressed and fasm2frames rejects it. Vivado emits no `.IN` bits at
+all for such a tile and relies on `IN_ONLY`. The writer should do the same.
+Worked around by driving the board PHY's unused management pins.
 
-### 3. Timing at 100 MHz
+### 2. Timing at 100 MHz, and the hold STA
 
-Unchanged: `examples/vc707-litex/vc707_litex.py` records that 25 MHz is what
-the open flow closes and that it has no proper hold STA. The DDR3 build
-reports one -0.02 ns hold violation and works; ethmin reports 18 and works.
-Treat hold results here as advisory until the STA is trustworthy.
+`examples/vc707-litex/vc707_litex.py` records that 25 MHz is what the open flow
+closes and that it has no proper hold STA. The DDR3 build reports a -0.02 ns
+hold violation and works; ethmin reports 18 and works. Treat hold results as
+advisory until the STA is trustworthy.
+
+### 3. LiteEth's own clock tree
+
+`--with-ethernet` (LiteX's K7_1000BASEX) still does not route; `--with-ethmin-phy`
+is the way in. The difference is the PHY's clocking, not the PCS.
 
 ## How each step gets verified
 

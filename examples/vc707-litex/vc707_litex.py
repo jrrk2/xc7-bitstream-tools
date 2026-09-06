@@ -437,10 +437,31 @@ class BaseSoC(SoCCore):
             # Deliberately NOT copied: ethmin's six BUFG sites.  They were
             # chosen for a design with no memory controller, and this SoC's
             # DDR3 CRG competes for the same global buffers.
+            # These are Vivado's own choices for THIS design, read out of a
+            # routed checkpoint: the same yosys netlist, placed by Vivado,
+            # meets 125 MHz on both GMII clocks and brings the link up on
+            # hardware, where nextpnr's placement of the identical netlist
+            # reaches only 78.8/91.3 MHz and the link stays down.  So the
+            # netlist is sound and the placement is the whole deficit; giving
+            # nextpnr the placement that works is the cheap half of the fix.
+            #
+            # The BUFG sites were previously left out, on the theory that
+            # ethmin's were chosen for a design with no DDR3 competing for
+            # global buffers.  That was wrong: Vivado independently lands on
+            # essentially the same set, RX clocks in the low bank and TX in
+            # the high one, and the two rebuffering BUFGs on exactly ethmin's
+            # sites.
             for cell, site in [
-                ("liteeth_sgmii_phy.GTXE2_CHANNEL", "GTXE2_CHANNEL_X1Y1"),
-                ("liteeth_sgmii_phy.MMCME2_ADV",    "MMCME2_ADV_X0Y6"),
-                ("liteeth_sgmii_phy.MMCME2_ADV_1",  "MMCME2_ADV_X0Y3"),
+                ("liteeth_sgmii_phy.GTXE2_CHANNEL",   "GTXE2_CHANNEL_X1Y1"),
+                ("liteeth_sgmii_phy.IBUFDS_GTE2",     "IBUFDS_GTE2_X1Y0"),
+                ("liteeth_sgmii_phy.MMCME2_ADV",      "MMCME2_ADV_X0Y6"),
+                ("liteeth_sgmii_phy.MMCME2_ADV_1",    "MMCME2_ADV_X0Y3"),
+                ("liteeth_sgmii_phy.bufg_rxoutrebuf", "BUFGCTRL_X0Y2"),
+                ("liteeth_sgmii_phy.bufg_txoutrebuf", "BUFGCTRL_X0Y3"),
+                ("liteeth_sgmii_phy.bufg_ethrx62",    "BUFGCTRL_X0Y5"),
+                ("liteeth_sgmii_phy.bufg_ethrx125",   "BUFGCTRL_X0Y6"),
+                ("liteeth_sgmii_phy.bufg_ethtx62",    "BUFGCTRL_X0Y16"),
+                ("liteeth_sgmii_phy.bufg_ethtx125",   "BUFGCTRL_X0Y17"),
             ]:
                 platform.add_platform_command(
                     "set_property LOC {site} [get_cells {cell}]".format(site=site, cell=cell))

@@ -60,6 +60,7 @@ examples/vc707-litex-ddr/build*/
 examples/vc707-litex-eth/build*/
 examples/vc707-litex-ddr-eth/build*/
 examples/vc707-litex-ddr-ethmin/build*/
+examples/vc707-litex-ddr-ethmin/vivado-pnr/
 examples/vc707-telegraph/build*/
 examples/vc707-telegraph/.Xil/
 examples/vc707-telegraph/*.json
