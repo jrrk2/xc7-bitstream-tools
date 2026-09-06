@@ -97,9 +97,24 @@ hypotheses were tested and two were wrong:
 An earlier version of this document put region-constraint support
 (`create_pblock`) at the top of the list, reasoning from the critical-path
 report that a clock domain needed confining near its pins. That was wrong, and
-expensively so: the fix was a flag that already existed. Region constraints may
-still be worth having, but they are not what this needed, and hand-partitioning
-the die is doing the placer's job for it.
+expensively so: the fix was a flag that already existed.
+
+That is a verdict on regions as a *timing rescue*, and only that. As a way to
+ingest the constraints real designs ship with, the case is separate and it
+stands: Vivado's own reports for these SoCs reference `create_pblock`
+(the CLKAG_* clock-area groups), and himbaechel's XDC reader accepts seven
+constructs, none of them a pblock -- so a Vivado-constrained design must be
+hand-translated or have its floorplan silently dropped. It is also the
+fallback this work lacked. Feeding Vivado's placement back meant reading LOC
+values out of a checkpoint and pasting six constraints by hand, which made
+timing *worse*; `create_pblock` + `add_cells_to_pblock` would transfer a
+known-good floorplan wholesale instead of guessing which blocks matter.
+
+`apply_loc_constraints()` in xilinx.cc is the precedent for the wiring --
+point placement applied in prePlace(), resolve/unbind/bind, squatters yield --
+and nextpnr's core already has createRectangularRegion/constrainCellToRegion.
+The fiddly part is the range parser: Vivado pblock ranges are per-site-type
+and a pblock may list several (SLICE, RAMB36, DSP48).
 
 ## What is left
 
