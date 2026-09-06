@@ -40,6 +40,8 @@ distributed RAM (the CPU register file and the CSR/UART FIFOs), CARRY4 (every
 counter and address adder in the SoC) and the LUT/FF fabric.
 """
 
+import os
+
 from migen import *
 from migen.genlib.resetsync import AsyncResetSynchronizer
 
@@ -184,9 +186,99 @@ class _CRGDDR(LiteXModule):
         self.idelayctrl = S7IDELAYCTRL(self.cd_idelay)
 
 
+# Where ethmin's LiteEth SGMII wrapper lives, relative to this file.  It is
+# Verilog we treat as a black box, not something regenerated here.
+ETHMIN_PHY_V = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "..", "vc707-ethmin", "rtl", "liteeth_sgmii_phy.v")
+
+
+class EthminSGMIIPHY(LiteXModule):
+    """LiteEth's 1000BASE-X/SGMII PCS, in the wrapper ethmin proved on this board.
+
+    LiteX can build this PHY itself -- that is what --with-ethernet does, via
+    K7_1000BASEX -- and the result is correct but does not route through the
+    open flow: its clocking uses BUFHs, whose loads must sit in one clock
+    region, and the router fails on a global clock that cannot reach nine of
+    its loads across device halves (see docs/open-flow-ethernet-ddr-plan.md).
+
+    examples/vc707-ethmin wraps the *same* PCS behind a plain GMII interface,
+    and that version places, routes and answers ARP on this board through this
+    flow.  So it is imported as Verilog and instantiated as a black box: only
+    its GMII side is modelled here, and LiteEth's own GMII datapath -- the
+    same LiteEthPHYGMIITX/RX any GMII PHY uses -- carries it the rest of the
+    way to the MAC.
+
+    The black box brings its own IBUFDS_GTE2, transceiver and user-clock
+    MMCMs, so nothing in this class touches the GT.  clk_int/rst_int are the
+    system clock and reset, exactly as ethmin's own top level wires them.
+    """
+    dw          = 8
+    tx_clk_freq = 125e6
+    rx_clk_freq = 125e6
+
+    def __init__(self, platform, refclk_pads, data_pads):
+        from liteeth.phy.gmii import LiteEthPHYGMIITX, LiteEthPHYGMIIRX
+
+        # The GMII side, in the shape LiteEth's datapath expects of "pads".
+        class _GMIIPads:
+            pass
+
+        pads = _GMIIPads()
+        pads.tx_data = Signal(8)
+        pads.tx_en   = Signal()
+        pads.rx_data = Signal(8)
+        pads.rx_dv   = Signal()
+        pads.rx_er   = Signal()
+
+        gmii_tx_clk    = Signal()
+        gmii_rx_clk    = Signal()
+        self.link_up   = Signal()
+        self.phy_ready = Signal()
+
+        self.specials += Instance("liteeth_sgmii_phy",
+            i_clk_int        = ClockSignal("sys"),
+            i_rst_int        = ResetSignal("sys"),
+            i_sgmii_refclk_p = refclk_pads.p,
+            i_sgmii_refclk_n = refclk_pads.n,
+            o_sgmii_txp      = data_pads.txp,
+            o_sgmii_txn      = data_pads.txn,
+            i_sgmii_rxp      = data_pads.rxp,
+            i_sgmii_rxn      = data_pads.rxn,
+            o_gmii_tx_clk    = gmii_tx_clk,
+            i_gmii_txd       = pads.tx_data,
+            i_gmii_tx_en     = pads.tx_en,
+            o_gmii_rx_clk    = gmii_rx_clk,
+            o_gmii_rxd       = pads.rx_data,
+            o_gmii_rx_dv     = pads.rx_dv,
+            o_gmii_rx_er     = pads.rx_er,
+            o_link_up        = self.link_up,
+            o_phy_ready      = self.phy_ready,
+        )
+        platform.add_source(os.path.normpath(ETHMIN_PHY_V))
+
+        # The PHY returns the clocks its own MMCMs derive; LiteEth's datapath
+        # runs in them.  Holding that datapath in reset until phy_ready means
+        # the MAC never sees data clocked by an MMCM that has not locked.
+        self.cd_eth_tx = ClockDomain()
+        self.cd_eth_rx = ClockDomain()
+        self.comb += [
+            self.cd_eth_tx.clk.eq(gmii_tx_clk),
+            self.cd_eth_rx.clk.eq(gmii_rx_clk),
+        ]
+        self.specials += [
+            AsyncResetSynchronizer(self.cd_eth_tx, ~self.phy_ready),
+            AsyncResetSynchronizer(self.cd_eth_rx, ~self.phy_ready),
+        ]
+
+        self.tx = ClockDomainsRenamer("eth_tx")(LiteEthPHYGMIITX(pads))
+        self.rx = ClockDomainsRenamer("eth_rx")(LiteEthPHYGMIIRX(pads))
+        self.sink, self.source = self.tx.sink, self.rx.source
+
+
 class BaseSoC(SoCCore):
     def __init__(self, sys_clk_freq=SYS_CLK_FREQ, with_led_chaser=True,
-                 with_ethernet=False, with_ddr=False, flow="unknown",
+                 with_ethernet=False, with_ethmin_phy=False, with_ddr=False,
+                 flow="unknown",
                  local_ip=LOCAL_IP, remote_ip=REMOTE_IP,
                  mac_address=MAC_ADDRESS, tftp_port=TFTP_PORT, **kwargs):
         platform = xilinx_vc707.Platform()
@@ -198,9 +290,13 @@ class BaseSoC(SoCCore):
         # running one is indistinguishable from a board running the other.
         # Naming the flow in the SoC identifier is what tells them apart:
         # `ident` at the BIOS prompt reads it back out of the identifier CSR.
+        if with_ethernet and with_ethmin_phy:
+            raise ValueError("--with-ethernet and --with-ethmin-phy are two ways "
+                             "to get the same PCS; pick one")
         variant = "+".join(["LiteX SoC on VC707"]
                            + (["DDR3"] if with_ddr else [])
-                           + (["LiteEth"] if with_ethernet else []))
+                           + (["LiteEth"] if with_ethernet else [])
+                           + (["LiteEth/ethmin"] if with_ethmin_phy else []))
         SoCCore.__init__(self, platform, sys_clk_freq,
                          ident=f"{variant} [{flow}]", **kwargs)
 
@@ -286,6 +382,69 @@ class BaseSoC(SoCCore):
             # redirects the BIOS's network boot without patching the BIOS.
             self.add_constant("TFTP_SERVER_PORT", tftp_port)
 
+        # Ethernet, through ethmin's wrapper -----------------------------
+        # Same PCS, same pins, same MAC above it; only the PHY's own clocking
+        # and its packaging differ.  See EthminSGMIIPHY for why this route
+        # exists at all.
+        if with_ethmin_phy:
+            eth = platform.request("eth")
+
+            class _DataPads:
+                """liteeth_sgmii_phy names the pair txp/txn/rxp/rxn; the
+                VC707 platform spells the same pins tx_p/tx_n/rx_p/rx_n."""
+
+            data_pads = _DataPads()
+            data_pads.txp, data_pads.txn = eth.tx_p, eth.tx_n
+            data_pads.rxp, data_pads.rxn = eth.rx_p, eth.rx_n
+
+            # The board PHY's management pins are not used: 1000BASE-X
+            # autonegotiation brings the link up without MDIO.  They are
+            # driven rather than left floating, and that is not cosmetic.
+            # eth_rst_n (AJ33) and eth_mdio (AK33) are the two halves of one
+            # IOB tile, and prjxray's IOB_Y{0,1}...IN features share bit
+            # 39_01 with opposite polarity -- it selects WHICH half is the
+            # input, so "both halves are inputs" cannot be expressed and
+            # fasm2frames rejects it.  Vivado emits no .IN bits at all for
+            # such a tile.  Driving these two makes rst_n an output and
+            # leaves one input in the tile, which is expressible.
+            if hasattr(eth, "rst_n"):
+                self.comb += eth.rst_n.eq(1)   # hold the PHY out of reset
+            if hasattr(eth, "mdc"):
+                self.comb += eth.mdc.eq(0)
+
+            self.ethphy = EthminSGMIIPHY(
+                platform    = platform,
+                refclk_pads = platform.request("sgmii_clock"),
+                data_pads   = data_pads)
+            self.add_ethernet(phy=self.ethphy, local_ip=local_ip,
+                              remote_ip=remote_ip, mac_address=mac_address)
+            self.add_constant("TFTP_SERVER_PORT", tftp_port)
+
+            # Placement for the black box's hard blocks.  Importing the
+            # wrapper brings its logic across but not the placement that made
+            # it routable, and these are the sites Vivado chose for ethmin --
+            # which places, routes and answers ARP on this board through the
+            # open flow.  The names are ethmin's own with the flattened
+            # instance prefix: eth.i_phy.X becomes liteeth_sgmii_phy.X.
+            #
+            # The transceiver is the one that has been shown to matter: with
+            # it pinned, nextpnr's clocking pass anchors the PHY's MMCMs on
+            # the dedicated GT->MMCM routing itself, and on the LiteX-built
+            # PHY it overrode the MMCM constraints given alongside.  They are
+            # given anyway, for fidelity to ethmin; nextpnr is free to prefer
+            # its own and says so when it does.
+            #
+            # Deliberately NOT copied: ethmin's six BUFG sites.  They were
+            # chosen for a design with no memory controller, and this SoC's
+            # DDR3 CRG competes for the same global buffers.
+            for cell, site in [
+                ("liteeth_sgmii_phy.GTXE2_CHANNEL", "GTXE2_CHANNEL_X1Y1"),
+                ("liteeth_sgmii_phy.MMCME2_ADV",    "MMCME2_ADV_X0Y6"),
+                ("liteeth_sgmii_phy.MMCME2_ADV_1",  "MMCME2_ADV_X0Y3"),
+            ]:
+                platform.add_platform_command(
+                    "set_property LOC {site} [get_cells {cell}]".format(site=site, cell=cell))
+
         if with_led_chaser:
             self.leds = LedChaser(
                 pads=platform.request_all("user_led"),
@@ -311,6 +470,10 @@ def main():
                                help="MAC address the SoC answers to.")
     parser.add_target_argument("--tftp-port", default=TFTP_PORT, type=int,
                                help="UDP port the BIOS network-boots from.")
+    parser.add_target_argument("--with-ethmin-phy", action="store_true",
+                               help="Enable LiteEth over ethmin's SGMII wrapper, imported as "
+                                    "Verilog.  Same PCS as --with-ethernet, but the clocking "
+                                    "the open flow can route.")
     parser.add_target_argument("--with-ddr", action="store_true",
                                help="Enable the DDR3 SODIMM through the V7DDRPHY.  Selects a "
                                     "different clock generator; see _CRGDDR.")
@@ -327,6 +490,7 @@ def main():
         sys_clk_freq=sys_clk_freq,
         with_led_chaser=args.with_led_chaser,
         with_ethernet=args.with_ethernet,
+        with_ethmin_phy=args.with_ethmin_phy,
         with_ddr=args.with_ddr,
         local_ip=args.local_ip,
         remote_ip=args.remote_ip,

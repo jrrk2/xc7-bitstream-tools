@@ -46,70 +46,95 @@ and one `IDELAYCTRL`. Every one of those already has a FASM writer in
 `fasm.cc`, and `IDELAYCTRL` has packing support in `pack_io.cc`. All 198 cells
 synthesised, packed and placed without complaint.
 
-## The one real blocker
+## DDR3: done (2026-09-06)
 
-    ERROR: Failed to route arc 0.0 of net 'main_k7_1000basex_rxoutclk_rebuffer',
-           from X192Y160/BUFGCTRL_X0Y0.O to X100Y197/SLICE_X1Y0.CLKINV_OUT.
+It routes, calibrates against the SODIMM and passes memtest, with either CPU.
+The delay taps agree with Vivado's build of the same gateware. See
+`examples/vc707-litex-ddr/README.md`.
 
-The net *is* given to the dedicated clock router -- the log shows `routing
-clock 'main_k7_1000basex_rxoutclk_rebuffer'` -- and nine of its loads then
-report `failed to find a route using dedicated resources`. They fall through
-to router2, which cannot reach a slice's clock pin through general
-interconnect, and the build stops. `main_crgddr_clkout0/1/2` each lose one
-load the same way.
+## Ethernet: the blocker was LiteEth's clock tree, not the router
 
-The arc crosses device halves: a BUFG in tile row Y160 driving a slice at
-Y197. That is what the `CLK_BUFG_REBUF` spine exists for, and the spine *is*
-modelled -- the working block-RAM SoC emits 31 of those features. But Vivado's
-build of this design emits **170**, across several GCLK indices, where ours
-uses essentially one. So the gap is not "the spine is missing" but "the clock
-router gives up on loads the spine could reach".
+The failure was
 
-That is a router/model problem, not a device-database gap, and it is the whole
-of what stands between here and a routed design.
+    ERROR: Failed to route arc of net 'main_k7_1000basex_rxoutclk_rebuffer',
+           from BUFGCTRL_X0Y0.O to SLICE_X1Y0.CLKINV_OUT
 
-## Work items, in order
+and the guess recorded here was that the clock router could not reach across
+device halves. That was wrong. Substituting the PHY wrapper from
+`examples/vc707-ethmin` -- the *same* LiteEth 1000BASE-X PCS, behind a plain
+GMII interface, instantiated as a black box -- routes every clock including
+that one. `--with-ethmin-phy` selects it.
 
-1. **Establish why nine loads fail dedicated routing.** Instrument or gdb the
-   dedicated clock router at the point it gives up for this net, exactly as
-   the earlier unbounded-search diagnosis was done. Everything below depends
-   on the answer, so nothing else should start first.
+So the fault is in how LiteEth builds its clocking, not in the router's reach
+and not in a missing chipdb path. One constraint anchors the rest:
 
-2. **Compare against the golden spine usage.** `prjxray/utils/bit2fasm.py` on
-   `examples/vc707-litex-ddr-eth/build-vivado/gateware/xilinx_vc707.bit` --
-   which works on hardware -- and diff the `CLK_BUFG_REBUF`, `CLK_HROW_*` and
-   `HCLK_*` tiles against ours. 170 features against 31 is the shape of the
-   answer; the diff says which GCLK indices and which enables we never set.
+    set_property LOC GTXE2_CHANNEL_X1Y1 [get_cells liteeth_sgmii_phy.GTXE2_CHANNEL]
 
-3. **Remove the BUFHs at the generator, not afterwards.** The LiteX gateware
-   has three `BUFH`s where ethmin has none, and a BUFH drives a single clock
-   region. `S7MMCM.create_clkout(..., buf=...)` selects the buffer, so this
-   belongs in the LiteEth PHY generation rather than in a post-hoc retype of
-   the emitted Verilog. The retype was tried and sent router2 into an
-   unbounded whole-device search, which is a separate router bug worth
-   isolating on its own (a bounded attempt that fails should not fall back to
-   an A* over thirty million wires).
+With the transceiver pinned, nextpnr's clocking pass places the PHY's MMCMs
+itself from the dedicated GT->MMCM routing. Copying ethmin's other eleven LOCs
+is unnecessary; nextpnr overrides the MMCM ones and says so.
 
-4. **Only then, timing.** This SoC runs at 100 MHz because V7DDRPHY needs
-   `sys4x`; `examples/vc707-litex/vc707_litex.py` records that 25 MHz is what
-   the open flow closes, and that it has no proper hold STA. Expect work here
-   and do not read a routed-but-silent board as a routing failure.
+## What is left: placement locality, not routing
+
+The design routes and produces a bitstream. It does not meet timing on the
+GMII clocks, and the reason is where the logic sits rather than how much of it
+there is:
+
+    eth_tx_clk critical path: 1.10 ns logic, 3.92 ns routing
+    (324,96) -> (350,149) -> (330,73)
+
+78% wire, on a path that hops ~76 rows. The SGMII pins and the GT quad are in
+the bottom right of the die; the eth datapath should be beside them and is
+not. Two runs of identical RTL gave `eth_tx_clk` 120.1 MHz and 91.3 MHz -- a
+24% swing decided by nothing but where the placer happened to scatter it.
+
+The same pathology puts clock sources far from their loads: in the DDR-only
+build 97% of 12642 slices sat in Y300-349 while the MMCM was at tile Y4, the
+BUFGs at Y17-25 and the block RAMs at Y62-69.
+
+### 1. Region constraints (do this first)
+
+`himbaechel/uarch/xilinx/xdc.cc` understands only `create_clock`,
+`set_property` and `set_multicycle_path`. There is no `create_pblock`, so
+there is currently no way to say "this clock domain belongs in the bottom
+right". Adding that -- and honouring it in the placer -- fixes the cause
+rather than the symptom, removes the run-to-run lottery, and helps every
+design through this flow rather than this one. Vivado's own implementation of
+the LiteEth SoC uses `create_pblock CLKAG_*` groups for exactly this.
+
+Re-rolling placer seeds until one passes is not a substitute; it is the same
+lottery with extra steps.
+
+### 2. The .IN bits when both halves of a tile are inputs
+
+prjxray's `IOB_Y0...IN` and `IOB_Y1...IN` share bit `39_01` with opposite
+polarity -- it selects *which* half is the input, so "both halves are inputs"
+cannot be expressed, and fasm2frames rejects it as inconsistent. Vivado emits
+no `.IN` bits at all for such a tile and relies on `IN_ONLY`. The writer
+should do the same. Worked around for now by driving the board PHY's unused
+management pins so only one half of that tile is an input.
+
+### 3. Timing at 100 MHz
+
+Unchanged: `examples/vc707-litex/vc707_litex.py` records that 25 MHz is what
+the open flow closes and that it has no proper hold STA. The DDR3 build
+reports one -0.02 ns hold violation and works; ethmin reports 18 and works.
+Treat hold results here as advisory until the STA is trustworthy.
 
 ## How each step gets verified
 
-Not by LVS alone. On 2026-09-05 LVS proved this SoC at 2820 proved / 0 differ
-while it drove every signal onto the wrong package pin with an inverted input:
-it models fabric logic and never inspects pad or I/O-logic configuration. All
-four of that day's bugs were found by decoding a golden Vivado bitstream of
-identical RTL with `bit2fasm`, diffing feature by feature, and then confirming
-the claim against the segbits database rather than inferring it.
+Not by LVS alone. On 2026-09-05 LVS proved the LiteX SoC at 2820 proved / 0
+differ while it drove every signal onto the wrong package pin with an inverted
+input: it models fabric logic and never inspects pad or I/O-logic
+configuration. All four of that day's bugs were found by decoding a golden
+Vivado bitstream of identical RTL with `bit2fasm`, diffing feature by feature,
+and confirming each claim against the segbits database rather than inferring
+it.
 
-Every variant here has such a golden bitstream, and all three are known to
-work on the board:
+Every variant has such a bitstream, and all are known to work on the board:
 
 * `examples/vc707-litex-ddr/build-vivado` -- DDR3, memtest passes
 * `examples/vc707-litex-eth/build-vivado` -- LiteEth
-* `examples/vc707-litex-ddr-eth/build-vivado` -- both; ARP and ICMP answered,
-  512 MiB at 800 MT/s
+* `examples/vc707-litex-ddr-eth/build-vivado` -- both; ARP and ICMP answered
 
 Use them. A design that routes is not a design that works.
