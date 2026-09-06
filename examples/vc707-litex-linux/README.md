@@ -58,22 +58,22 @@ way in, since the PCS autonegotiates in hardware.  Linux boots without it.
 
 ## The network boot is host-specific
 
-The address the BIOS boots from is compiled into the gateware, so a bitstream
-built on one machine looks for a TFTP server on *that* machine's network.  The
-Makefile detects the build host's address rather than carrying a default; an
-earlier version hardcoded one developer's, which built fine anywhere and then
-failed on the board with an ARP timeout for a host that did not exist on that
-network.
+The address the BIOS boots from is compiled into the gateware, and it is the
+address of the machine **serving TFTP** -- which is not necessarily the machine
+that built the bitstream.  The board's Ethernet goes to the hub whoever happens
+to hold the JTAG cable, so building on a laptop while serving from a
+workstation is an ordinary arrangement, and the two addresses differ.
 
-The build prints what it chose:
+Left unset the build guesses this host, which is right only when the builder
+also serves.  It prints what it chose:
 
     network boot will look for a TFTP server at 192.168.1.106
 
-Override it when the server is elsewhere:
+Set it properly in `local.mk` (untracked, see `local.mk.example`):
 
-    make vc707-litex-linux LITEX_REMOTE_IP=10.0.0.5
+    LITEX_REMOTE_IP = 192.168.1.106
 
-And serve the payload from that machine:
+and serve the payload from that machine:
 
     make tftp-serve
 

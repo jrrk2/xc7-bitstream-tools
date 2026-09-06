@@ -1,0 +1,16 @@
+# Copy to local.mk (untracked) and edit.  These are properties of a machine,
+# not of the project.
+
+# The machine serving the network-boot payload.  The board's Ethernet is on
+# the hub regardless of which machine holds the JTAG cable, so this is often
+# NOT the machine you build on.  Left unset, the build guesses this host.
+#LITEX_REMOTE_IP = 192.168.1.106
+
+# openFPGALoader, if it is not on PATH.
+#OFL = /home/you/openFPGALoader/build/openFPGALoader
+
+# Vivado's bin directory, for the golden-reference builds.
+#VIVADO_BIN = /opt/Xilinx/Vivado/2020.1/bin
+
+# A directory holding an rv32ima Image and rootfs.cpio, for the Linux payload.
+#LINUX_IMAGES = /path/to/buildroot/images

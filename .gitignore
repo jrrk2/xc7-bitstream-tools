@@ -88,3 +88,4 @@ examples/vc707-litex/gateware/*.fasm
 
 # the yosys install prefix CI builds (see scripts/pinned_yosys.sh)
 yosys-install/
+local.mk

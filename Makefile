@@ -1,6 +1,13 @@
 .PHONY: help setup litex-deps tftp-serve tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
+# Values that are properties of a machine rather than of the project --
+# LITEX_REMOTE_IP when the TFTP server is not this host, OFL if
+# openFPGALoader is not on PATH, VIVADO_BIN, LINUX_IMAGES -- belong in
+# local.mk, which is not tracked.  Included first so a plain `?=` default
+# below does not override it.
+-include local.mk
+
 DESIGN ?= johnson_sonata
 FASM ?=
 PART ?= xc7a50tcsg324-1
@@ -129,12 +136,16 @@ LINUX_IMAGES   ?=
 # on it; see examples/vc707-litex-linux/README.md.
 LINUX_TFTP_DIR ?= $(HOME)/tftp-vc707/10:e2:d5:00:00:07
 
-# The address the BIOS network-boots FROM, compiled into the gateware.  It must
-# be the machine serving TFTP, which is normally the one running this build --
-# so it is detected rather than hardcoded.  A previous version had one
-# developer's address as the default, which built fine anywhere and then failed
-# on the board with an ARP timeout for a host that did not exist on that
-# network.  Override for a server elsewhere: make ... LITEX_REMOTE_IP=10.0.0.5
+# The address the BIOS network-boots FROM, compiled into the gateware.  It is
+# the machine SERVING TFTP, which is not necessarily this one: the board's
+# Ethernet goes to the hub whoever happens to hold the JTAG cable, so the
+# bitstream can be built on one machine and served from another.  Set it in
+# local.mk (see below) if those differ.
+#
+# Falling back to this host's own address is a guess that is right when the
+# builder also serves.  A previous version hardcoded one developer's address
+# instead, which built cleanly anywhere and then failed on the board with an
+# ARP timeout for a host that did not exist on that network.
 #
 # The UDP connect() sets a route and sends nothing; it just asks the kernel
 # which local address would be used to reach the internet.  Works on Linux and
