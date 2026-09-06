@@ -1,4 +1,4 @@
-.PHONY: help setup tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: help setup tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 DESIGN ?= johnson_sonata
@@ -119,7 +119,16 @@ LITEX_ETH_DIR  ?= examples/vc707-litex-eth
 LITEX_DDRETH_DIR ?= examples/vc707-litex-ddr-eth
 LITEX_DDRETHMIN_DIR ?= examples/vc707-litex-ddr-ethmin
 LITEX_DDRETHMIN_OUT ?= litex_ddr_ethmin_vc707.bit
+LINUX_DIR      ?= examples/vc707-litex-linux
+LINUX_BUILD    ?= $(LITEX_DDRETHMIN_DIR)/build-linux
+LINUX_OUT      ?= litex_linux_vc707.bit
+# Kernel and rootfs are not vendored: point this at a directory holding an
+# rv32ima `Image` and `rootfs.cpio`.
+LINUX_IMAGES   ?= /home/jonathan/f4pga-examples/xc7/linux_litex_demo/buildroot
+# Where the per-MAC TFTP server serves this board's payload from.
+LINUX_TFTP_DIR ?= /home/jonathan/tftp-vc707/10:e2:d5:00:00:07
 VEXRISCV_V     ?= $(CURDIR)/litex-deps/pythondata-cpu-vexriscv/pythondata_cpu_vexriscv/verilog/VexRiscv.v
+VEXRISCV_LINUX_V ?= $(CURDIR)/litex-deps/pythondata-cpu-vexriscv/pythondata_cpu_vexriscv/verilog/VexRiscv_Linux.v
 ETHMIN_PHY_V   ?= $(CURDIR)/examples/vc707-ethmin/rtl/liteeth_sgmii_phy.v
 LITEX_DIR      ?= examples/vc707-litex
 LITEX_GATEWARE ?= $(LITEX_DIR)/gateware
@@ -419,6 +428,44 @@ vc707-litex-ddr-ethmin: fasm2netlist nextpnr
 		--db $(PRJXRAY_DB) --fasm $(LITEX_DDRETHMIN_DIR)/build-openXC7/gateware/$(LITEX_TOP).fasm \
 		--output $(LITEX_DDRETHMIN_OUT)
 	@echo "built $(LITEX_DDRETHMIN_OUT) -- flash with 'make vc707-litex-ddr-ethmin-flash'"
+
+# Linux, through the open flow.  See examples/vc707-litex-linux/README.md.
+vc707-litex-linux: fasm2netlist nextpnr
+	@scripts/pinned_yosys.sh >/dev/null
+	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "PRJXRAY_DB must name a Project X-Ray database checkout"; exit 2; }
+	rm -rf $(LINUX_BUILD)
+	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
+		--with-led-chaser --cpu-type vexriscv --cpu-variant linux \
+		--with-ddr --with-ethmin-phy --flow openXC7 --no-compile-gateware \
+		--build --output-dir $(LINUX_BUILD)
+	cd $(LINUX_BUILD)/gateware && $(PINNED_YOSYS) -q -p \
+		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+		$(VEXRISCV_LINUX_V) $(ETHMIN_PHY_V) $(LITEX_TOP).v
+	$(NEXTPNR_BIN) --device $(LITEX_PART) -o xdc=$(LINUX_BUILD)/gateware/$(LITEX_TOP).xdc \
+		--json $(LINUX_BUILD)/gateware/$(LITEX_TOP).json \
+		-o fasm=$(LINUX_BUILD)/gateware/$(LITEX_TOP).fasm \
+		--router router2 $(NEXTPNR_FLAGS) --timing-allow-fail
+	$(MAKE) check-fasm FASM=$(LINUX_BUILD)/gateware/$(LITEX_TOP).fasm PRJXRAY_DB=$(PRJXRAY_DB)
+	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 --part $(LITEX_PART) \
+		--db $(PRJXRAY_DB) --fasm $(LINUX_BUILD)/gateware/$(LITEX_TOP).fasm --output $(LINUX_OUT)
+	@echo "built $(LINUX_OUT); now 'make vc707-litex-linux-payload'"
+
+# The emulator and the dtb both come from THIS SoC's csr.json: the emulator
+# #includes generated/csr.h, and adding the CPU timer shifts every CSR bank.
+vc707-litex-linux-payload:
+	@test -d $(LINUX_BUILD)/software || { echo "run 'make vc707-litex-linux' first"; exit 2; }
+	@test -f $(LINUX_IMAGES)/Image || { echo "LINUX_IMAGES must hold Image and rootfs.cpio"; exit 2; }
+	$(MAKE) -C $(LINUX_DIR)/emulator BUILD_DIR=$(CURDIR)/$(LINUX_BUILD)
+	mkdir -p "$(LINUX_TFTP_DIR)"
+	cp $(LINUX_IMAGES)/Image $(LINUX_IMAGES)/rootfs.cpio "$(LINUX_TFTP_DIR)/"
+	cp $(LINUX_DIR)/emulator/emulator.bin "$(LINUX_TFTP_DIR)/"
+	$(PYTHON) scripts/linux_payload.py --dts $(LINUX_DIR)/rv32.dts \
+		--csr $(LINUX_BUILD)/csr.json --images $(LINUX_IMAGES) \
+		--out "$(LINUX_TFTP_DIR)"
+	@echo "payload staged in $(LINUX_TFTP_DIR)"
+
+vc707-litex-linux-flash:
+	$(OFL) --cable digilent --freq 15000000 $(LINUX_OUT)
 
 vc707-litex-ddr-ethmin-flash:
 	$(OFL) --cable digilent --freq 15000000 $(LITEX_DDRETHMIN_OUT)

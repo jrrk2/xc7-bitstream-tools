@@ -293,6 +293,8 @@ class BaseSoC(SoCCore):
         if with_ethernet and with_ethmin_phy:
             raise ValueError("--with-ethernet and --with-ethmin-phy are two ways "
                              "to get the same PCS; pick one")
+        str_variant_is_linux = "linux" in str(kwargs.get("cpu_variant", "") or "")
+
         variant = "+".join(["LiteX SoC on VC707"]
                            + (["DDR3"] if with_ddr else [])
                            + (["LiteEth"] if with_ethernet else [])
@@ -307,6 +309,17 @@ class BaseSoC(SoCCore):
         # applied to the litex submodule; without it the stock tagline is
         # printed and the flow is still readable with the `ident` command.
         self.add_config("BIOS_BANNER_TAGLINE", TAGLINES.get(flow, f"Built with {flow}"))
+
+        # A Linux-capable CPU needs the VexRiscv timer -----------------------
+        # The machine-mode emulator that provides SBI reads a 64-bit latched
+        # counter through `cpu_timer_latch_write()` / `cpu_timer_time_read()`,
+        # which is LiteX's VexRiscvTimer registered under the CPU as
+        # `cpu_timer`.  SoCCore does not instantiate it, so without this the
+        # emulator polls a CSR that does not exist: Linux gets no timer
+        # interrupt, the scheduler never runs, and the boot stops dead after
+        # "Executing booted program" with nothing on the console.
+        if str_variant_is_linux and hasattr(self.cpu, "add_timer"):
+            self.cpu.add_timer()
 
         # DDR3 --------------------------------------------------------------
         # The MT8JTF12864 SODIMM through the 7-series PHY, as litex-boards'
