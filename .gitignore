@@ -57,6 +57,26 @@ examples/arty-blinky/blinky_placement.json
 # LiteX build products (regenerable -- see examples/vc707-litex/README.md)
 examples/vc707-litex/build*/
 examples/vc707-litex-ddr/build*/
+examples/vc707-litex-eth/build*/
+examples/vc707-litex-ddr-eth/build*/
+examples/vc707-telegraph/build*/
+examples/vc707-telegraph/.Xil/
+examples/vc707-telegraph/*.json
+examples/vc707-telegraph/*.fasm
+
+# The netbooted self-test's build products; main.c and the Makefile are the
+# source, and the image is only valid for the SoC it was compiled against.
+examples/vc707-litex-testapp/*.o
+examples/vc707-litex-testapp/*.d
+examples/vc707-litex-testapp/*.elf
+examples/vc707-litex-testapp/*.elf.map
+examples/vc707-litex-testapp/*.bin
+
+# Sweep/extraction products for the checked-in LiteX gateware: the .v, .xdc
+# and .init files are the source, everything derived from them is not.
+examples/vc707-litex/gateware/*.json
+examples/vc707-litex/gateware/*_gates.v
+examples/vc707-litex/gateware/*.fasm
 
 # the yosys install prefix CI builds (see scripts/pinned_yosys.sh)
 yosys-install/

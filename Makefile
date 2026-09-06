@@ -1,4 +1,4 @@
-.PHONY: help setup tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: help setup tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 DESIGN ?= johnson_sonata
@@ -44,6 +44,8 @@ VC707_DIR ?= examples/vc707-johnson
 VC707_FASM ?=
 VC707_PART ?= xc7vx485tffg1761-2
 VC707_OUT ?= johnson_vc707.bit
+TELEGRAPH_DIR ?= examples/vc707-telegraph
+TELEGRAPH_OUT ?= telegraph_vc707.bit
 BIT ?=
 TESTBENCH ?=
 VALIDATION_DIR ?= .validation
@@ -86,10 +88,12 @@ vc707-litex-ddr-gen:
 VIVADO_BIN ?= /NFS/apps/Xilinx/Vivado/2020.1/bin
 vc707-litex-ddr-vivado:
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
-	PATH="$(VIVADO_BIN):$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DDR_DIR)/vc707_litex_ddr.py \
-		--cpu-type $(LITEX_DDR_CPU) --flow vivado --build \
-		--output-dir $(LITEX_DDR_DIR)/build-vivado
-	@echo "built $(LITEX_DDR_DIR)/build-vivado/gateware/$(LITEX_DDR_TOP).bit"
+	@$(PYTHON) -c 'import litedram' 2>/dev/null || { \
+	  echo "LiteDRAM is not installed in $(PYTHON):"; \
+	  echo "  $(PYTHON) -m pip install -e litex-deps/litedram"; exit 2; }
+	rm -rf $(LITEX_DDR_DIR)/build-vivado
+	$(LITEX_GEN) --with-ddr --output-dir $(LITEX_DDR_DIR)/build-vivado
+	@echo "built $(LITEX_DDR_DIR)/build-vivado/gateware/$(LITEX_TOP).bit"
 
 vc707-litex-ddr-flash:
 	$(OFL) --cable digilent --freq 15000000 $(LITEX_DDR_DIR)/build-vivado/gateware/$(LITEX_DDR_TOP).bit
@@ -99,6 +103,8 @@ vc707-litex-ddr-flash:
 # regenerates it and needs both.  yosys must run IN that directory: the design
 # $readmemh's its ROM from a relative path, and from anywhere else the ROM
 # reads as zero without a word of complaint.
+LITEX_ETH_DIR  ?= examples/vc707-litex-eth
+LITEX_DDRETH_DIR ?= examples/vc707-litex-ddr-eth
 LITEX_DIR      ?= examples/vc707-litex
 LITEX_GATEWARE ?= $(LITEX_DIR)/gateware
 LITEX_TOP      ?= xilinx_vc707
@@ -219,6 +225,7 @@ help:
 	  '  make tools                              Build Project X-Ray conversion tools' \
 	  '  make yosys                              Build the pinned yosys (the one the results are quoted for)' \
 	  '  make vc707-johnson PRJXRAY_DB=...        Build VC707 Johnson from source to raw bitstream' \
+	  '  make vc707-telegraph PRJXRAY_DB=...      Build VC707 telegraph: UART "JRRK" + heartbeat LED' \
 	  '  make arty-blinky PRJXRAY_DB=...          Build the Arty A7 blinky (the carry-chain example)' \
 	  '  make vc707-litex PRJXRAY_DB=...          Build the LiteX SoC from its checked-in gateware, and extract it' \
 	  '  make vc707-litex-gen [LITEX_FLOW=vivado] Regenerate that gateware from the LiteX sources' \
@@ -281,6 +288,82 @@ ifeq ($(VERIFY),1)
 		V_XDC=$(VC707_DIR)/top.xdc V_TOP=top V_PART=$(VC707_PART) \
 		V_DEVICE=$(VC707_DEVICE) V_FAMILY=$(VC707_FAMILY) PRJXRAY_DB=$(PRJXRAY_DB)
 endif
+
+# The smallest design here that drives BOTH a UART and an LED: a bit-banged
+# 8N1 transmitter repeating "JRRK", with no CPU, no BRAM and no MMCM.  It
+# exists to tell two failures apart that otherwise look identical -- a dead
+# clock and a dead output path -- because a silent LiteX SoC drives no LED and
+# so cannot distinguish them.  led[0] blinks at ~0.75 Hz if sysclk reaches the
+# fabric; "JRRK" arrives at 115200 8N1 if the AU36 TX path works end to end.
+vc707-telegraph: tools nextpnr
+	@scripts/pinned_yosys.sh >/dev/null
+	cd $(TELEGRAPH_DIR) && $(PINNED_YOSYS) -p 'synth_xilinx -flatten -abc9 -nobram -arch xc7 -top top; write_json telegraph.json' top.v telegraph_core.v
+	$(NEXTPNR_BIN) --device $(VC707_PART) -o xdc=$(TELEGRAPH_DIR)/top.xdc --json $(TELEGRAPH_DIR)/telegraph.json \
+		-o fasm=$(TELEGRAPH_DIR)/telegraph.fasm -o placement=$(TELEGRAPH_DIR)/telegraph_placement.json --router router2
+	$(MAKE) vc707 VC707_FASM=$(TELEGRAPH_DIR)/telegraph.fasm PRJXRAY_DB=$(PRJXRAY_DB) VC707_OUT=$(TELEGRAPH_OUT)
+ifeq ($(VERIFY),1)
+	$(MAKE) verify-extraction V_NAME=vc707-telegraph V_FASM=$(TELEGRAPH_DIR)/telegraph.fasm \
+		V_JSON=$(TELEGRAPH_DIR)/telegraph.json V_PLACE=$(TELEGRAPH_DIR)/telegraph_placement.json \
+		V_XDC=$(TELEGRAPH_DIR)/top.xdc V_TOP=top V_PART=$(VC707_PART) \
+		V_DEVICE=$(VC707_DEVICE) V_FAMILY=$(VC707_FAMILY) PRJXRAY_DB=$(PRJXRAY_DB)
+endif
+
+# Vivado's build of the same RTL: the reference the open flow is graded
+# against.  When the open flow's bitstream misbehaves on hardware, the useful
+# question is not "is our bitstream wrong?" but "how does it differ from one
+# that works?", and that needs both.
+vc707-telegraph-vivado:
+	cd $(TELEGRAPH_DIR) && mkdir -p build-vivado && $(VIVADO_BIN)/vivado -mode batch -nojournal -nolog -source build_vivado.tcl
+	@echo "built $(TELEGRAPH_DIR)/build-vivado/telegraph.bit"
+
+vc707-telegraph-flash:
+	$(OFL) --cable digilent --freq 15000000 $(TELEGRAPH_OUT)
+
+vc707-telegraph-flash-vivado:
+	$(OFL) --cable digilent --freq 15000000 $(TELEGRAPH_DIR)/build-vivado/telegraph.bit
+
+# The LiteX SoC triage matrix, all four variants from ONE generator
+# (examples/vc707-litex/vc707_litex.py) so they cannot drift apart:
+#
+#   vc707-litex                 block RAM only            open flow: PROVED
+#   vc707-litex-ddr-*           + DDR3 SODIMM             Vivado only so far
+#   vc707-litex-eth-*           + LiteEth over the GTX    open flow: router
+#   vc707-litex-ddr-eth-*       + both
+#
+# Each is built with Vivado first, where the answer is known, before the open
+# flow is asked the same question; --flow names the build in the BIOS banner
+# so two bitstreams from identical gateware can be told apart on the board.
+# Note that --with-ddr selects a different clock generator (see _CRGDDR), so a
+# DDR variant is not a controlled comparison against a non-DDR one.
+LITEX_GEN = PATH="$(VIVADO_BIN):$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
+	--with-led-chaser --cpu-type $(LITEX_CPU) --flow vivado --build
+
+# Block RAM for main memory; the DDR variants take theirs from the SODIMM.
+LITEX_BRAM_RAM = --integrated-main-ram-size 0x4000
+
+vc707-litex-eth-vivado:
+	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
+	@$(PYTHON) -c 'import liteeth' 2>/dev/null || { \
+	  echo "LiteEth is not installed in $(PYTHON):"; \
+	  echo "  $(PYTHON) -m pip install -e litex-deps/liteeth"; exit 2; }
+	rm -rf $(LITEX_ETH_DIR)/build-vivado
+	$(LITEX_GEN) $(LITEX_BRAM_RAM) --with-ethernet --output-dir $(LITEX_ETH_DIR)/build-vivado
+	@echo "built $(LITEX_ETH_DIR)/build-vivado/gateware/$(LITEX_TOP).bit"
+
+vc707-litex-ddr-eth-vivado:
+	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
+	@$(PYTHON) -c 'import liteeth, litedram' 2>/dev/null || { \
+	  echo "LiteEth and LiteDRAM must both be installed in $(PYTHON):"; \
+	  echo "  $(PYTHON) -m pip install -e litex-deps/liteeth -e litex-deps/litedram"; exit 2; }
+	rm -rf $(LITEX_DDRETH_DIR)/build-vivado
+	$(LITEX_GEN) --with-ddr --with-ethernet --output-dir $(LITEX_DDRETH_DIR)/build-vivado
+	@echo "built $(LITEX_DDRETH_DIR)/build-vivado/gateware/$(LITEX_TOP).bit"
+
+vc707-litex-eth-flash-vivado:
+	$(OFL) --cable digilent --freq 15000000 $(LITEX_ETH_DIR)/build-vivado/gateware/$(LITEX_TOP).bit
+
+vc707-litex-ddr-eth-flash-vivado:
+	$(OFL) --cable digilent --freq 15000000 $(LITEX_DDRETH_DIR)/build-vivado/gateware/$(LITEX_TOP).bit
 
 # A counter and nothing else -- no LUT logic at all, seven carry cells and an
 # inverter.  Small, but the only example here that exercises the carry chain,

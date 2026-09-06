@@ -33,6 +33,7 @@ set -u -o pipefail
 #        block RAM leaves it off.
 DESIGNS=(
   "vc707-johnson|.|$EXAMPLES/vc707-johnson/top.v $EXAMPLES/vc707-johnson/counter25_core.v|top|$EXAMPLES/vc707-johnson/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|-nobram"
+  "vc707-telegraph|examples/vc707-telegraph|top.v telegraph_core.v|top|top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|-nobram"
   "vc707-multibufg|.|$EXAMPLES/vc707-multibufg/top.v|top|$EXAMPLES/vc707-multibufg/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|-nobram"
   "arty-a35|.|$EXAMPLES/arty-a35/blinky.v|top|$EXAMPLES/arty-a35/arty.xdc|xc7a35tcsg324-1|xc7a50t|artix7|-nobram"
   "johnson-sonata|.|$EXAMPLES/sonata/johnson_sonata.v|johnson_sonata|$EXAMPLES/sonata/johnson_sonata.xdc|xc7a50tcsg324-1|xc7a50t|artix7|-nobram"

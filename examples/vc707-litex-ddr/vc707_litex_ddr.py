@@ -75,6 +75,16 @@ class BaseSoC(SoCCore):
                            module        = MT8JTF12864(sys_clk_freq, "1:4"),
                            l2_cache_size = kwargs.get("l2_size", 8192))
 
+        # The DDR3 pins are SSTL15_T_DCI, and Vivado's startup sequence waits
+        # for DCI match before releasing DONE.  On this board that wait does
+        # not complete: the bitstream loads with no CRC error and the FPGA
+        # sits in startup state 3 with DONE low, so nothing ever runs.  DCI
+        # still calibrates; this only stops the startup sequence blocking on
+        # it.  Remove it and the board goes dark again -- that is the test
+        # that says whether this is really the cause.
+        platform.add_platform_command(
+            "set_property BITSTREAM.STARTUP.MATCH_CYCLE NoWait [current_design]")
+
         if with_led_chaser:
             self.leds = LedChaser(pads=platform.request_all("user_led"),
                                   sys_clk_freq=sys_clk_freq)

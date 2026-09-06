@@ -33,30 +33,24 @@ exactly that:
     Router2::route_arc (..., is_bb=false) -> was_visited_fwd (wire=30148782, cost=3.4e38)
 
 So the BUFG swap turned a fast, explicit failure into a slow one; the bounded
-attempt had already failed before that point. A transceiver's clock outputs
-reach only certain buffers by dedicated paths, and the honest reading is that
-the route this design needs is one the router cannot find at all — whether
-because the path does not exist in the chipdb or because it is not modelled as
-a dedicated route is the next thing to establish.
+attempt had already failed before that point.
 
-The gateware here keeps the BUFGs: the change is the smaller of the two
-puzzles to reason about, and the failure it leaves is better characterised.
+## Correction (2026-09-05): the path exists
 
-It got this far because of two fixes made for `examples/vc707-ethmin`: the
-chipdb's site ordering (package pins resolved to the wrong GT pads) and the
-reference-clock buffer being deleted after placement. Before those, no GT
-design reached the router at all.
+An earlier version of this file guessed that "the route this design needs is
+one the router cannot find at all -- whether because the path does not exist
+in the chipdb or because it is not modelled as a dedicated route". That is
+wrong, and `examples/vc707-ethmin` disproves it: the same LiteEth
+`K7_1000BASEX` PHY, the same single `GTXE2_CHANNEL`, `IBUFDS_GTE2` and three
+`MMCME2_ADV`, and it places, routes and answers ARP on hardware through this
+flow.
 
-## Building it by hand
+What the LiteX design was missing is one constraint:
 
-    cd examples/vc707-litex-eth/gateware
-    yosys -p "read_verilog -sv $(grep -v '^#' sources.f | tr '\n' ' '); \
-              synth_xilinx -flatten -abc9 -arch xc7 -top xilinx_vc707; \
-              write_json gold.json"
+    set_property LOC GTXE2_CHANNEL_X1Y1 [get_cells GTXE2_CHANNEL]
 
-yosys must run in that directory: the design `$readmemh`s its ROM, its main
-RAM and the 8b/10b tables by relative path, and from anywhere else they read as
-zero without a word of complaint.
-
-Regenerate the gateware with `make vc707-litex-gen` plus `--with-ethernet`; it
-is checked in so a build needs neither LiteX nor a RISC-V toolchain.
+With the transceiver pinned there, every clock in the DDR3+LiteEth SoC routes
+except one, and nextpnr places the PHY's two MMCMs itself from the dedicated
+GT->MMCM paths. The remaining failure is a global clock that cannot reach nine
+of its loads across device halves -- a clock-router limitation, not a missing
+path. See `docs/open-flow-ethernet-ddr-plan.md`.
