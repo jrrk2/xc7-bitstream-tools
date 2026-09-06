@@ -41,3 +41,6 @@
 [submodule "litex-deps/litedram"]
 	path = litex-deps/litedram
 	url = https://github.com/enjoy-digital/litedram
+[submodule "litex-deps/pythondata-cpu-vexriscv"]
+	path = litex-deps/pythondata-cpu-vexriscv
+	url = https://github.com/litex-hub/pythondata-cpu-vexriscv
