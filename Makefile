@@ -1,4 +1,4 @@
-.PHONY: help setup tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: help setup tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 DESIGN ?= johnson_sonata
@@ -452,10 +452,18 @@ vc707-litex-linux: fasm2netlist nextpnr
 
 # The emulator and the dtb both come from THIS SoC's csr.json: the emulator
 # #includes generated/csr.h, and adding the CPU timer shifts every CSR bank.
-vc707-litex-linux-payload:
+# Split out so CI can build it: this needs only the SoC, where the payload
+# also needs a kernel and rootfs, which are not vendored.  The emulator takes
+# its addresses from the SoC's generated/csr.h, so building it is a real check
+# that the SoC still provides what the machine-mode software expects -- it is
+# how the missing cpu_timer would have been caught.
+vc707-litex-linux-emulator:
 	@test -d $(LINUX_BUILD)/software || { echo "run 'make vc707-litex-linux' first"; exit 2; }
-	@test -f $(LINUX_IMAGES)/Image || { echo "LINUX_IMAGES must hold Image and rootfs.cpio"; exit 2; }
 	$(MAKE) -C $(LINUX_DIR)/emulator BUILD_DIR=$(CURDIR)/$(LINUX_BUILD)
+	@echo "built $(LINUX_DIR)/emulator/emulator.bin"
+
+vc707-litex-linux-payload: vc707-litex-linux-emulator
+	@test -f $(LINUX_IMAGES)/Image || { echo "LINUX_IMAGES must hold Image and rootfs.cpio"; exit 2; }
 	mkdir -p "$(LINUX_TFTP_DIR)"
 	cp $(LINUX_IMAGES)/Image $(LINUX_IMAGES)/rootfs.cpio "$(LINUX_TFTP_DIR)/"
 	cp $(LINUX_DIR)/emulator/emulator.bin "$(LINUX_TFTP_DIR)/"

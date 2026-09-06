@@ -1,0 +1,160 @@
+name: Build Linux SoC
+
+# Deliberately not on every push: this is the largest design in the tree -- an
+# MMU-capable RISC-V beside a DDR3 PHY and a gigabit transceiver -- and
+# place-and-route is measured in tens of minutes.  It runs when something it
+# depends on moves, and on request.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.gitmodules'
+      - 'nextpnr'
+      - 'examples/vc707-litex/vc707_litex.py'
+      - 'examples/vc707-litex-linux/**'
+      - 'examples/vc707-ethmin/rtl/liteeth_sgmii_phy.v'
+      - 'scripts/**'
+      - '.github/workflows/build-linux.yml'
+      - '.github/ci/build_linux.sh'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.gitmodules'
+      - 'nextpnr'
+      - 'examples/vc707-litex/vc707_litex.py'
+      - 'examples/vc707-litex-linux/**'
+      - 'examples/vc707-ethmin/rtl/liteeth_sgmii_phy.v'
+      - 'scripts/**'
+      - '.github/workflows/build-linux.yml'
+      - '.github/ci/build_linux.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Linux SoC through the open flow
+    runs-on: ubuntu-latest
+    # P&R on this design takes ~10 min on a fast workstation; a runner is
+    # slower and the placer is the long pole.
+    timeout-minutes: 180
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          # recursive: yosys carries abc, and the LiteX dependencies (litex,
+          # liteeth, litedram, pythondata-cpu-vexriscv) are submodules the
+          # generator imports.
+          submodules: recursive
+
+      - name: Fetch the Project X-Ray database
+        run: git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db
+
+      - name: Work out the cache key
+        id: keys
+        run: |
+          echo "nextpnr=$(git -C nextpnr rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "db=$(git -C .deps/prjxray-db rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "yosys=$(git -C yosys rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Shares the key the other workflows use, so one chipdb serves all three.
+      - name: Restore xc7vx485t chipdb
+        id: cache-vx485t
+        uses: actions/cache/restore@v4
+        with:
+          path: build/himbaechel/uarch/xilinx/chipdb-xc7vx485t.bba
+          key: chipdb-xc7vx485t-${{ steps.keys.outputs.nextpnr }}-${{ steps.keys.outputs.db }}
+
+      # cmake rebuilds a .bba older than its generator, and a restored one
+      # always is -- checkout stamps sources now, the cache restores the old
+      # mtime.  Without this the cache saves nothing.
+      - name: Accept the restored chipdb as current
+        run: |
+          shopt -s nullglob
+          files=(build/himbaechel/uarch/xilinx/chipdb-*.bba)
+          if [ ${#files[@]} -gt 0 ]; then touch "${files[@]}"; echo "marked ${#files[@]} restored chipdb(s) current"
+          else echo "no chipdb restored; it will be generated"; fi
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake git libeigen3-dev libboost-all-dev \
+            python3 python3-venv libz3-dev bison flex libfl-dev \
+            libreadline-dev gawk tcl-dev libffi-dev pkg-config zlib1g-dev \
+            device-tree-compiler gcc-riscv64-unknown-elf
+
+      - name: Restore the pinned yosys
+        id: cache-yosys
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            yosys/yosys
+            yosys/share
+          key: yosys-bin-${{ steps.keys.outputs.yosys }}-${{ runner.os }}
+
+      - name: Build the pinned yosys
+        if: steps.cache-yosys.outputs.cache-hit != 'true'
+        run: |
+          make yosys
+          strip yosys/yosys
+          yosys/yosys -V
+
+      - name: Save the pinned yosys
+        if: always() && steps.cache-yosys.outputs.cache-hit != 'true' && hashFiles('yosys/yosys') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            yosys/yosys
+            yosys/share
+          key: yosys-bin-${{ steps.keys.outputs.yosys }}-${{ runner.os }}
+
+      - name: Check no package-manager yosys crept back in
+        run: bash scripts/check_no_apt_yosys.sh
+
+      - name: Set up the Python environment
+        run: |
+          make setup
+          # The generator needs LiteX and the cores it instantiates; these are
+          # submodules, installed editable so the checked-out commit is what
+          # runs.
+          .venv/bin/python -m pip install -q \
+            -e litex-deps/migen -e litex-deps/litex -e litex-deps/litex-boards \
+            -e litex-deps/liteeth -e litex-deps/litedram \
+            -e litex-deps/pythondata-cpu-vexriscv \
+            -e litex-deps/pythondata-software-picolibc \
+            -e litex-deps/pythondata-software-compiler_rt
+
+      - name: Build nextpnr
+        run: make nextpnr PRJXRAY_DB=$GITHUB_WORKSPACE/.deps/prjxray-db
+
+      - name: Build the Linux SoC and its machine-mode software
+        run: bash .github/ci/build_linux.sh
+
+      - name: Save xc7vx485t chipdb
+        if: always() && steps.cache-vx485t.outputs.cache-hit != 'true' && hashFiles('build/himbaechel/uarch/xilinx/chipdb-xc7vx485t.bba') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: build/himbaechel/uarch/xilinx/chipdb-xc7vx485t.bba
+          key: chipdb-xc7vx485t-${{ steps.keys.outputs.nextpnr }}-${{ steps.keys.outputs.db }}
+
+      - name: Upload the bitstream and machine-mode software
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vc707-linux
+          path: |
+            litex_linux_vc707.bit
+            examples/vc707-litex-linux/emulator/emulator.bin
+          retention-days: 7
+
+      - name: Report
+        if: always()
+        run: |
+          echo "Status: ${{ job.status }}"
+          [ -f litex_linux_vc707.bit ] && echo "bitstream: $(stat -c %s litex_linux_vc707.bit) bytes"
+          # To boot it, add a kernel and rootfs -- see
+          # examples/vc707-litex-linux/README.md -- and
+          # 'make vc707-litex-linux-payload LINUX_IMAGES=...'
+          true
