@@ -56,14 +56,39 @@ There is no ethernet node.  The SGMII PHY is imported as a black box and
 exposes no `ethphy` CSR for the LiteEth driver to bind to; `fixed-link` is the
 way in, since the PCS autonegotiates in hardware.  Linux boots without it.
 
+## The network boot is host-specific
+
+The address the BIOS boots from is compiled into the gateware, so a bitstream
+built on one machine looks for a TFTP server on *that* machine's network.  The
+Makefile detects the build host's address rather than carrying a default; an
+earlier version hardcoded one developer's, which built fine anywhere and then
+failed on the board with an ARP timeout for a host that did not exist on that
+network.
+
+The build prints what it chose:
+
+    network boot will look for a TFTP server at 192.168.1.106
+
+Override it when the server is elsewhere:
+
+    make vc707-litex-linux LITEX_REMOTE_IP=10.0.0.5
+
+And serve the payload from that machine:
+
+    make tftp-serve
+
+which dispatches on the requesting MAC -- so several boards can be served
+their own payload out of one directory -- and logs each request, the quickest
+way to tell whether the board got as far as asking.
+
 ## Building
 
     make vc707-litex-linux PRJXRAY_DB=...        # SoC + emulator + dtb
     make vc707-litex-linux-payload              # stage kernel/rootfs/dtb/emulator
     make vc707-litex-linux-flash
 
-The kernel and rootfs are not vendored; `LINUX_IMAGES` names a directory
-holding `Image` and `rootfs.cpio` built for rv32ima.  Those used here came
+The kernel and rootfs are not vendored and have no default; `LINUX_IMAGES`
+names a directory holding `Image` and `rootfs.cpio` built for rv32ima.  Those used here came
 from f4pga-examples' `linux_litex_demo` (Linux 5.0.13, Buildroot 2020.02).
 
 ## What the open flow had to close

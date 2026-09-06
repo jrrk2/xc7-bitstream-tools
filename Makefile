@@ -1,4 +1,4 @@
-.PHONY: help setup litex-deps tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: help setup litex-deps tftp-serve tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 DESIGN ?= johnson_sonata
@@ -123,9 +123,23 @@ LINUX_BUILD    ?= $(LITEX_DDRETHMIN_DIR)/build-linux
 LINUX_OUT      ?= litex_linux_vc707.bit
 # Kernel and rootfs are not vendored: point this at a directory holding an
 # rv32ima `Image` and `rootfs.cpio`.
-LINUX_IMAGES   ?= /home/jonathan/f4pga-examples/xc7/linux_litex_demo/buildroot
-# Where the per-MAC TFTP server serves this board's payload from.
-LINUX_TFTP_DIR ?= /home/jonathan/tftp-vc707/10:e2:d5:00:00:07
+LINUX_IMAGES   ?=
+# Where the per-MAC TFTP server serves this board's payload from.  The
+# directory is named for the SoC's MAC because scripts/tftp_serve.py dispatches
+# on it; see examples/vc707-litex-linux/README.md.
+LINUX_TFTP_DIR ?= $(HOME)/tftp-vc707/10:e2:d5:00:00:07
+
+# The address the BIOS network-boots FROM, compiled into the gateware.  It must
+# be the machine serving TFTP, which is normally the one running this build --
+# so it is detected rather than hardcoded.  A previous version had one
+# developer's address as the default, which built fine anywhere and then failed
+# on the board with an ARP timeout for a host that did not exist on that
+# network.  Override for a server elsewhere: make ... LITEX_REMOTE_IP=10.0.0.5
+#
+# The UDP connect() sets a route and sends nothing; it just asks the kernel
+# which local address would be used to reach the internet.  Works on Linux and
+# macOS alike.
+LITEX_REMOTE_IP ?= $(shell $(PYTHON) -c "import socket; s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('8.8.8.8', 80)); print(s.getsockname()[0]); s.close()" 2>/dev/null)
 VEXRISCV_V     ?= $(CURDIR)/litex-deps/pythondata-cpu-vexriscv/pythondata_cpu_vexriscv/verilog/VexRiscv.v
 VEXRISCV_LINUX_V ?= $(CURDIR)/litex-deps/pythondata-cpu-vexriscv/pythondata_cpu_vexriscv/verilog/VexRiscv_Linux.v
 ETHMIN_PHY_V   ?= $(CURDIR)/examples/vc707-ethmin/rtl/liteeth_sgmii_phy.v
@@ -385,7 +399,8 @@ vc707-telegraph-flash-vivado:
 # Note that --with-ddr selects a different clock generator (see _CRGDDR), so a
 # DDR variant is not a controlled comparison against a non-DDR one.
 LITEX_GEN = PATH="$(VIVADO_BIN):$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
-	--with-led-chaser --cpu-type $(LITEX_CPU) --flow vivado --build
+	--with-led-chaser --cpu-type $(LITEX_CPU) --flow vivado --build \
+	$(if $(LITEX_REMOTE_IP),--remote-ip $(LITEX_REMOTE_IP))
 
 # Block RAM for main memory; the DDR variants take theirs from the SODIMM.
 LITEX_BRAM_RAM = --integrated-main-ram-size 0x4000
@@ -434,6 +449,7 @@ vc707-litex-ddr-ethmin: fasm2netlist nextpnr
 	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
 		--with-led-chaser --cpu-type vexriscv --with-ddr --with-ethmin-phy \
 		--flow openXC7 --no-compile-gateware --build \
+		$(if $(LITEX_REMOTE_IP),--remote-ip $(LITEX_REMOTE_IP)) \
 		--output-dir $(LITEX_DDRETHMIN_DIR)/build-openXC7
 	cd $(LITEX_DDRETHMIN_DIR)/build-openXC7/gateware && $(PINNED_YOSYS) -q -p \
 		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
@@ -452,11 +468,15 @@ vc707-litex-ddr-ethmin: fasm2netlist nextpnr
 # Linux, through the open flow.  See examples/vc707-litex-linux/README.md.
 vc707-litex-linux: fasm2netlist nextpnr
 	@scripts/pinned_yosys.sh >/dev/null
+	@test -n "$(LITEX_REMOTE_IP)" || { echo "could not work out this host's IP; pass LITEX_REMOTE_IP=..."; exit 2; }
+	@echo "network boot will look for a TFTP server at $(LITEX_REMOTE_IP)"
+	@echo "  (serve it with 'make tftp-serve'; override with LITEX_REMOTE_IP=...)"
 	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "no Project X-Ray database at $(PRJXRAY_DB)"; echo "  git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db"; echo "  (or build with PRJXRAY_DB=/path/to/prjxray-db)"; exit 2; }
 	rm -rf $(LINUX_BUILD)
 	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
 		--with-led-chaser --cpu-type vexriscv --cpu-variant linux \
 		--with-ddr --with-ethmin-phy --flow openXC7 --no-compile-gateware \
+		$(if $(LITEX_REMOTE_IP),--remote-ip $(LITEX_REMOTE_IP)) \
 		--build --output-dir $(LINUX_BUILD)
 	cd $(LINUX_BUILD)/gateware && $(PINNED_YOSYS) -q -p \
 		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
@@ -483,7 +503,10 @@ vc707-litex-linux-emulator:
 	@echo "built $(LINUX_DIR)/emulator/emulator.bin"
 
 vc707-litex-linux-payload: vc707-litex-linux-emulator
-	@test -f $(LINUX_IMAGES)/Image || { echo "LINUX_IMAGES must hold Image and rootfs.cpio"; exit 2; }
+	@test -n "$(LINUX_IMAGES)" && test -f "$(LINUX_IMAGES)/Image" && test -f "$(LINUX_IMAGES)/rootfs.cpio" || { \
+	  echo "LINUX_IMAGES must name a directory holding an rv32ima Image and rootfs.cpio:"; \
+	  echo "  make vc707-litex-linux-payload LINUX_IMAGES=/path/to/buildroot/images"; \
+	  echo "see examples/vc707-litex-linux/README.md for where they come from"; exit 2; }
 	mkdir -p "$(LINUX_TFTP_DIR)"
 	cp $(LINUX_IMAGES)/Image $(LINUX_IMAGES)/rootfs.cpio "$(LINUX_TFTP_DIR)/"
 	cp $(LINUX_DIR)/emulator/emulator.bin "$(LINUX_TFTP_DIR)/"
@@ -491,6 +514,13 @@ vc707-litex-linux-payload: vc707-litex-linux-emulator
 		--csr $(LINUX_BUILD)/csr.json --images $(LINUX_IMAGES) \
 		--out "$(LINUX_TFTP_DIR)"
 	@echo "payload staged in $(LINUX_TFTP_DIR)"
+
+# The board network-boots from this; it dispatches on the requesting MAC so
+# several boards can be served their own payload from one directory.  Runs in
+# the foreground -- it logs each request, which is the quickest way to see
+# whether the board got as far as asking.
+tftp-serve:
+	$(PYTHON) scripts/tftp_serve.py --root $(dir $(LINUX_TFTP_DIR)) --port 6969
 
 vc707-litex-linux-flash:
 	$(OFL) --cable digilent --freq 15000000 $(LINUX_OUT)
