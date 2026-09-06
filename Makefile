@@ -1,4 +1,4 @@
-.PHONY: help setup tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: help setup litex-deps tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 DESIGN ?= johnson_sonata
@@ -87,8 +87,7 @@ LITEX_DDR_CPU      ?= serv
 vc707-litex-ddr-gen:
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
 	@$(PYTHON) -c 'import litedram' 2>/dev/null || { \
-	  echo "LiteDRAM is not installed in $(PYTHON):"; \
-	  echo "  $(PYTHON) -m pip install -e litex-deps/litedram"; exit 2; }
+	  echo "LiteX packages missing from $(PYTHON); run: make litex-deps"; exit 2; }
 	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DDR_DIR)/vc707_litex_ddr.py \
 		--cpu-type $(LITEX_DDR_CPU) --flow generated --no-compile-gateware --build \
 		--output-dir $(LITEX_DDR_DIR)/build-generated
@@ -102,8 +101,7 @@ VIVADO_BIN ?= /NFS/apps/Xilinx/Vivado/2020.1/bin
 vc707-litex-ddr-vivado:
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
 	@$(PYTHON) -c 'import litedram' 2>/dev/null || { \
-	  echo "LiteDRAM is not installed in $(PYTHON):"; \
-	  echo "  $(PYTHON) -m pip install -e litex-deps/litedram"; exit 2; }
+	  echo "LiteX packages missing from $(PYTHON); run: make litex-deps"; exit 2; }
 	rm -rf $(LITEX_DDR_DIR)/build-vivado
 	$(LITEX_GEN) --with-ddr --output-dir $(LITEX_DDR_DIR)/build-vivado
 	@echo "built $(LITEX_DDR_DIR)/build-vivado/gateware/$(LITEX_TOP).bit"
@@ -212,16 +210,30 @@ vc707-litex: fasm2netlist nextpnr
 
 # Regenerate the gateware from the LiteX sources.  Needs the submodules under
 # litex-deps/ installed into the venv, and a RISC-V toolchain for the BIOS.
+# Every LiteX package the generators import, installed editable so the
+# checked-out submodule commit is what runs.  The guards below point here
+# rather than each naming its own partial set: a fresh checkout otherwise
+# discovers the dependencies one failure at a time.
+LITEX_PKGS = migen litex litex-boards liteeth litedram \
+             pythondata-cpu-serv pythondata-cpu-vexriscv \
+             pythondata-software-picolibc pythondata-software-compiler_rt
+
+litex-deps:
+	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
+	@for p in $(LITEX_PKGS); do \
+	  test -d litex-deps/$$p || { \
+	    echo "litex-deps/$$p is empty; the submodules are not checked out:"; \
+	    echo "  git submodule update --init --recursive"; exit 2; }; \
+	done
+	$(PYTHON) -m pip install $(foreach p,$(LITEX_PKGS),-e litex-deps/$(p))
+	@echo "LiteX packages installed in $(PYTHON)"
+
 # LITEX_FLOW names the flow in the BIOS banner's tagline, which is the only
 # thing distinguishing two bitstreams built from identical gateware.
 vc707-litex-gen:
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
 	@$(PYTHON) -c 'import litex, migen, litex_boards' 2>/dev/null || { \
-		echo "LiteX is not installed in $(PYTHON);"; \
-		echo "  $(PYTHON) -m pip install -e litex-deps/migen -e litex-deps/litex \\"; \
-		echo "      -e litex-deps/litex-boards -e litex-deps/pythondata-cpu-serv \\"; \
-		echo "      -e litex-deps/pythondata-software-picolibc -e litex-deps/pythondata-software-compiler_rt"; \
-		exit 2; }
+		echo "LiteX packages missing from $(PYTHON); run: make litex-deps"; exit 2; }
 	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
 		--with-led-chaser --cpu-type $(LITEX_CPU) --integrated-main-ram-size 0x4000 \
 		--flow $(LITEX_FLOW) --no-compile-gateware --build --output-dir $(LITEX_DIR)/build-$(LITEX_FLOW)
@@ -248,7 +260,7 @@ vc707-litex-verify: fasm2netlist nextpnr
 help:
 	@printf '%s\n' 'Targets:' \
 	  '  make setup                              Create the local Python environment' \
-	  '  make tools                              Build Project X-Ray conversion tools' \
+	  '  make litex-deps                         Install the LiteX packages the generators import' 	  '  make tools                              Build Project X-Ray conversion tools' \
 	  '  make yosys                              Build the pinned yosys (the one the results are quoted for)' \
 	  '  make vc707-johnson                      Build VC707 Johnson from source to raw bitstream' \
 	  '  make vc707-telegraph                    Build VC707 telegraph: UART "JRRK" + heartbeat LED' \
@@ -372,8 +384,7 @@ LITEX_BRAM_RAM = --integrated-main-ram-size 0x4000
 vc707-litex-eth-vivado:
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
 	@$(PYTHON) -c 'import liteeth' 2>/dev/null || { \
-	  echo "LiteEth is not installed in $(PYTHON):"; \
-	  echo "  $(PYTHON) -m pip install -e litex-deps/liteeth"; exit 2; }
+	  echo "LiteX packages missing from $(PYTHON); run: make litex-deps"; exit 2; }
 	rm -rf $(LITEX_ETH_DIR)/build-vivado
 	$(LITEX_GEN) $(LITEX_BRAM_RAM) --with-ethernet --output-dir $(LITEX_ETH_DIR)/build-vivado
 	@echo "built $(LITEX_ETH_DIR)/build-vivado/gateware/$(LITEX_TOP).bit"
@@ -381,8 +392,7 @@ vc707-litex-eth-vivado:
 vc707-litex-ddr-eth-vivado:
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
 	@$(PYTHON) -c 'import liteeth, litedram' 2>/dev/null || { \
-	  echo "LiteEth and LiteDRAM must both be installed in $(PYTHON):"; \
-	  echo "  $(PYTHON) -m pip install -e litex-deps/liteeth -e litex-deps/litedram"; exit 2; }
+	  echo "LiteX packages missing from $(PYTHON); run: make litex-deps"; exit 2; }
 	rm -rf $(LITEX_DDRETH_DIR)/build-vivado
 	$(LITEX_GEN) --with-ddr --with-ethernet --output-dir $(LITEX_DDRETH_DIR)/build-vivado
 	@echo "built $(LITEX_DDRETH_DIR)/build-vivado/gateware/$(LITEX_TOP).bit"
@@ -410,7 +420,7 @@ vc707-litex-ddr-ethmin: fasm2netlist nextpnr
 	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "no Project X-Ray database at $(PRJXRAY_DB)"; echo "  git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db"; echo "  (or build with PRJXRAY_DB=/path/to/prjxray-db)"; exit 2; }
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
 	@$(PYTHON) -c 'import liteeth, litedram, pythondata_cpu_vexriscv' 2>/dev/null || { \
-	  echo "needs LiteEth, LiteDRAM and pythondata-cpu-vexriscv in $(PYTHON)"; exit 2; }
+	  echo "LiteX packages missing from $(PYTHON); run: make litex-deps"; exit 2; }
 	rm -rf $(LITEX_DDRETHMIN_DIR)/build-openXC7
 	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
 		--with-led-chaser --cpu-type vexriscv --with-ddr --with-ethmin-phy \
