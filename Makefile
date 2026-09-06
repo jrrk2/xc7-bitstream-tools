@@ -226,7 +226,16 @@ litex-deps:
 	    echo "  git submodule update --init --recursive"; exit 2; }; \
 	done
 	$(PYTHON) -m pip install $(foreach p,$(LITEX_PKGS),-e litex-deps/$(p))
+	# Building the BIOS needs meson and ninja: picolibc is a meson project,
+	# and LiteX looks for a `meson` BINARY on PATH (>= 0.59), not an
+	# importable module.  Installed into the venv, where every target that
+	# runs a generator already puts .venv/bin on PATH.  A system meson from
+	# apt or brew serves just as well; this only makes a fresh checkout work
+	# without one.
+	$(PYTHON) -m pip install meson ninja
 	@echo "LiteX packages installed in $(PYTHON)"
+	@command -v meson >/dev/null 2>&1 || test -x "$(dir $(PYTHON))meson" || { \
+	  echo "warning: no meson on PATH -- the BIOS build will fail"; }
 
 # LITEX_FLOW names the flow in the BIOS banner's tagline, which is the only
 # thing distinguishing two bitstreams built from identical gateware.
