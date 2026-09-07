@@ -22,7 +22,19 @@ set -euo pipefail
 
 JSON=${1:?need the reference json}
 XDC=${2:?need the reference xdc}
-ROOT=$(cd "$(dirname "$0")" && pwd)
+# Find the checkout: walk up from here until we see nextpnr/ and .deps/.
+# The kit is normally unpacked *inside* the checkout, so $0's directory is
+# one level too deep.  XC7_ROOT overrides if the layout is unusual.
+ROOT=${XC7_ROOT:-}
+if [ -z "$ROOT" ]; then
+    d=$(cd "$(dirname "$0")" && pwd)
+    while [ "$d" != "/" ]; do
+        [ -d "$d/nextpnr" ] && [ -d "$d/.deps/prjxray-db" ] && { ROOT=$d; break; }
+        d=$(dirname "$d")
+    done
+fi
+[ -n "$ROOT" ] || { echo "no checkout found above $(dirname "$0"): set XC7_ROOT"; exit 2; }
+echo "  checkout: $ROOT"
 REF_FASM_SHA="a204ba4f975421429a7d4a1c8b7f6b0654fc540bd4d68fd9eaf9b7054d1bf69a"
 REF_JSON_SHA="5288f3c4f0873d97e5a06d9d88340383f004395f25a7138e0dfa61e1efd5082c"
 
@@ -35,9 +47,20 @@ printf '  expected   : %s\n' "$REF_JSON_SHA"
   || { echo "  netlist differs from the Linux one -- the comparison is meaningless; copy it across"; exit 2; }
 
 eigen_version() {
-  local h=$1
+  # Portable to BSD awk/sed: pull the three numbers, join with dots.  Falls
+  # back to printing the raw lines, because Eigen 5 may lay them out
+  # differently and a wrong parse is worse than no parse.
+  local h=$1 w m n
   [ -f "$h" ] || { echo "not found"; return; }
-  awk '/EIGEN_WORLD_VERSION|EIGEN_MAJOR_VERSION|EIGEN_MINOR_VERSION/ {print $3}' "$h" | paste -sd. -
+  w=$(sed -n 's/^#define[[:space:]]*EIGEN_WORLD_VERSION[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$h" | head -1)
+  m=$(sed -n 's/^#define[[:space:]]*EIGEN_MAJOR_VERSION[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$h" | head -1)
+  n=$(sed -n 's/^#define[[:space:]]*EIGEN_MINOR_VERSION[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$h" | head -1)
+  if [ -n "$w" ] && [ -n "$m" ]; then
+      echo "$w.$m.${n:-0}"
+  else
+      echo "unparsed -- raw lines follow:"
+      grep -E '#define[[:space:]]+EIGEN_(WORLD|MAJOR|MINOR)_VERSION' "$h" | sed 's/^/      /'
+  fi
 }
 
 say "Eigen currently visible"
