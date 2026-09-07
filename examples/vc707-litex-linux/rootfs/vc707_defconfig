@@ -76,6 +76,15 @@ BR2_PACKAGE_BUSYBOX_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/.
 # is for throughput once they are.
 BR2_PACKAGE_IPERF3=y
 
+# Dropbear gives us sshd (and dbclient) in a fraction of openssh's size,
+# which matters in an initramfs that has to fit in RAM alongside the
+# kernel.  Dropbear refuses to authenticate an account with an empty
+# password, and buildroot leaves root's empty by default, so a password
+# has to be set or sshd is installed but unusable.
+BR2_PACKAGE_DROPBEAR=y
+BR2_TARGET_GENERIC_ROOT_PASSWD="vc707"
+
+
 # OpenSBI, the M-mode firmware for the VexRiscv-SMP SoC.  It replaces the 6 KB
 # emulator, which existed only because the plain VexRiscv SoC had no CLINT at
 # 0xF0010000 and no PLIC at 0xf0c00000 -- exactly what this platform expects,
@@ -88,4 +97,8 @@ BR2_TARGET_OPENSBI_CUSTOM_REPO_VERSION="1.3.1-linux-on-litex-vexriscv"
 BR2_TARGET_OPENSBI_PLAT="litex/vexriscv"
 BR2_TARGET_OPENSBI_INSTALL_DYNAMIC_IMG=n
 
-BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/board/litex_vexriscv/rootfs_overlay"
+# Two overlays, applied in order.  Ours carries fixed dropbear host keys:
+# the rootfs is an initramfs in RAM, so without them dropbear generates a
+# fresh host key on every boot and every ssh client refuses to reconnect.
+BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/board/litex_vexriscv/rootfs_overlay $(TOPDIR)/../../examples/vc707-litex-linux/rootfs/overlay"
+BR2_ROOTFS_POST_BUILD_SCRIPT="$(TOPDIR)/../../examples/vc707-litex-linux/rootfs/post-build.sh"
