@@ -31,3 +31,35 @@
 [submodule "litex-deps/liteeth"]
 	path = litex-deps/liteeth
 	url = https://github.com/jrrk2/liteeth
+[submodule "yosys"]
+	path = yosys
+	url = https://github.com/YosysHQ/yosys
+	# It builds in-tree, so a built checkout is permanently "dirty".  Only the
+	# working tree is ignored: a change to the pinned COMMIT still shows up,
+	# which is the thing that would change the results.
+	ignore = dirty
+[submodule "litex-deps/litedram"]
+	path = litex-deps/litedram
+	url = https://github.com/enjoy-digital/litedram
+[submodule "litex-deps/pythondata-cpu-vexriscv"]
+	path = litex-deps/pythondata-cpu-vexriscv
+	url = https://github.com/litex-hub/pythondata-cpu-vexriscv
+[submodule "linux-deps/linux"]
+	path = linux-deps/linux
+	url = https://github.com/jrrk2/linux
+	branch = rv32-sonata-litex
+	shallow = true
+[submodule "linux-deps/buildroot"]
+	path = linux-deps/buildroot
+	url = https://github.com/jrrk2/buildroot
+	branch = sonata
+	shallow = true
+[submodule "linux-deps/linux-on-litex-vexriscv"]
+	path = linux-deps/linux-on-litex-vexriscv
+	url = https://github.com/jrrk2/linux-on-litex-vexriscv
+	branch = sonata
+	shallow = true
+[submodule "litex-deps/litesdcard"]
+	path = litex-deps/litesdcard
+	url = https://github.com/enjoy-digital/litesdcard
+	shallow = true

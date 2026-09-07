@@ -1,0 +1,10 @@
+# busybox tweaks for this board.
+#
+# NFS mount support needs Sun RPC headers (rpc/rpc.h), which glibc removed in
+# 2.32 -- they live in libtirpc now.  uclibc still ships them, which is why the
+# reference LiteX config never hits this and we do.
+#
+# Nothing here needs NFS: the BIOS netboots over TFTP and the root filesystem
+# is an initramfs, with the SD card to come.  So turn the feature off rather
+# than pull libtirpc in for a mount type we never use.
+# CONFIG_FEATURE_MOUNT_NFS is not set

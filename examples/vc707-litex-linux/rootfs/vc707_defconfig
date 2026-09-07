@@ -1,0 +1,74 @@
+# Buildroot config for the open-flow VC707 SoC.
+#
+# Derived from linux-on-litex-vexriscv's litex_vexriscv_defconfig, which
+# already targets this CPU exactly: rv32ima with compressed instructions
+# explicitly off, ILP32, and userspace built against 6.9 kernel headers.
+# That last one is the point of rebuilding: the f4pga rootfs was built for a
+# 5.x kernel and dies on 6.9 with "poll: Function not implemented", because
+# riscv has only ever had ppoll and whatever supplied poll() is long gone.
+#
+# What is dropped from the reference is everything that builds a *different*
+# boot path: this SoC has its own kernel build, uses the 6 KB emulator rather
+# than OpenSBI, and netboots a cpio over TFTP rather than writing an SD card.
+
+# Target: rv32ima/ilp32, no compressed -- VexRiscv has no C extension.
+BR2_riscv=y
+BR2_RISCV_32=y
+BR2_riscv_custom=y
+BR2_RISCV_ISA_CUSTOM_RVM=y
+BR2_RISCV_ISA_CUSTOM_RVA=y
+BR2_RISCV_ISA_CUSTOM_RVC=n
+BR2_RISCV_ISA_RVM=y
+BR2_RISCV_ISA_RVA=y
+BR2_RISCV_ISA_RVC=n
+BR2_RISCV_ABI_ILP32=y
+
+# libc: glibc, chosen rather than defaulted.
+#
+# The goal for this board is to run nextpnr on it (see the roadmap's stage 6),
+# and that is a large C++ program linking libstdc++.  glibc is the
+# best-supported libc for that, and the size argument against it -- sonata's
+# "saves ~2MB in rootfs, critical for 8MB RAM" -- is irrelevant at 512 MiB.
+#
+# Worth recording how this was found, because it was nearly missed.  With the
+# headers series misconfigured, BR2_TOOLCHAIN_HEADERS_AT_LEAST resolved to 2.6,
+# glibc was therefore unavailable, and buildroot fell back to uclibc-ng.  That
+# fallback was read as a considered default and reasoned about as one.  Fixing
+# the headers made glibc selectable and it became the default; pinning it here
+# makes it a decision instead of a second accident pointing the same way.
+# Changing this later needs a clean output directory.  The libc is part of the
+# toolchain triplet (…-linux-gnu vs …-linux-uclibc), and buildroot's stamps
+# will say gcc is built when it is built for the *other* triplet -- the next
+# package then fails with "cannot compile" and $? = 127.  Pinning it here means
+# the triplet is fixed at the first configure rather than emerging from
+# whichever libc happened to be available.
+BR2_TOOLCHAIN_BUILDROOT_GLIBC=y
+
+BR2_GLOBAL_PATCH_DIR="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/patches"
+BR2_GCC_VERSION_13_X=y
+
+# Userspace against 6.9 headers -- this is what fixes the ENOSYS.
+#
+# Two symbols, and both are required.  BR2_KERNEL_HEADERS_VERSION picks which
+# tarball to fetch; BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_9 declares which
+# series to assume.  Without the second, buildroot assumes 2.6 and
+# check-kernel-headers.sh fails the staging install with "expected 2.6.x, got
+# 6.9.x" -- after downloading 137 MB and building most of a toolchain.
+#
+# The default, left alone, is 6.19.6: newer than the kernel this userspace
+# runs on, which is the wrong direction.  Headers must not exceed the kernel.
+BR2_KERNEL_HEADERS_VERSION=y
+BR2_DEFAULT_KERNEL_VERSION="6.9"
+BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_9=y
+
+
+# A getty on the console the kernel gives us (liteuart0).
+BR2_TARGET_GENERIC_GETTY=y
+BR2_TARGET_GENERIC_GETTY_PORT="console"
+
+# The netboot payload is a cpio loaded at 0x40800000; nothing else is wanted.
+BR2_TARGET_ROOTFS_CPIO=y
+
+BR2_PACKAGE_BUSYBOX_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/../../../examples/vc707-litex-linux/rootfs/busybox.fragment"
+
+BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/board/litex_vexriscv/rootfs_overlay"
