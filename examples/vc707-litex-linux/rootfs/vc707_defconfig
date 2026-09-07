@@ -23,6 +23,15 @@ BR2_RISCV_ISA_RVA=y
 BR2_RISCV_ISA_RVC=n
 BR2_RISCV_ABI_ILP32=y
 
+# libc: uclibc-ng.  This was not chosen -- the line was omitted and buildroot
+# defaulted -- but it is kept on review, because it is what the generic
+# litex_vexriscv_defconfig uses, and that is the best-tested userspace for a
+# LiteX/VexRiscv SoC with these drivers.
+#
+# sonata overrides to musl ("saves ~2MB in rootfs, critical for 8MB RAM").
+# That explains why sonata differs; it is not an argument for this default.
+# The libc is not what fixes the ENOSYS in any case -- the headers are.
+
 BR2_GLOBAL_PATCH_DIR="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/patches"
 BR2_GCC_VERSION_13_X=y
 
