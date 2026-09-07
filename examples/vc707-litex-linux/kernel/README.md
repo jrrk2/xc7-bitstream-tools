@@ -25,8 +25,20 @@ of the 32-bit CSR access that the 5.0.13 image got wrong.
 
 ## Why the config differs from the sonata board's
 
-`board/litex_vexriscv/linux.config` in linux-on-litex-vexriscv describes a
-different machine.  Every change is about this SoC, not about the kernel:
+Because it describes the opposite machine.  The sonata board has **8 MiB of
+RAM**, so nothing is copied into it that does not have to be: the kernel text
+executes in place from flash at `XIP_PHYS_ADDR=0x02000000`, and the root
+filesystem is romfs read directly off MTD (`ROMFS_BACKED_BY_MTD`,
+`ROMFS_ON_MTD`, `MTD_ROM`) rather than unpacked anywhere.  RAM holds data and
+bss and little else.
+
+Seen that way, `BLK_DEV_INITRD=n` and `CONFIG_NET=n` are not omissions -- they
+are RAM that board cannot spare.  And `STRICT_KERNEL_RWX`, which aligns every
+kernel section to a PMD, costs *flash address space* there rather than RAM,
+which is why it is affordable on sonata and was ruinous here.
+
+This SoC is the inverse: 512 MiB of DDR3 at 0x40000000, netbooted into RAM,
+with no flash in the path at all.  Every change below follows from that:
 
 *The firmware is our 6 KB emulator, not OpenSBI.*
 
@@ -50,7 +62,17 @@ different machine.  Every change is about this SoC, not about the kernel:
     by `linux,initrd-start/end`; the sonata config has initrd off entirely.
   - `STRICT_KERNEL_RWX=n` -- it aligns every kernel section to a PMD, which on
     sv32 is 4 MB.  Six sections made a 4.5 MB kernel into a 21.5 MB image that
-    would have overwritten the initramfs.  Packed, it is 4,280,752 bytes.
+    would have overwritten the initramfs at 0x40800000.  Packed, it is
+    4,280,752 bytes.
+
+    **This one should be revisited.**  It was disabled to dodge an address
+    collision, but the collision only exists because the initramfs sits 8 MiB
+    above the kernel -- an address inherited from a 4.6 MB kernel, on a board
+    with 512 MiB where 13 MiB is in use.  Moving `ROOTFS_ADDR` to 0x42000000
+    costs nothing and buys back the protection the boot log currently
+    laments: "Kernel memory protection not selected by kernel config."
+    Trading away hardening to save 17 MB of a 512 MB address space is the
+    sonata board's reasoning applied where it does not belong.
   - `NET`, `INET`, `NET_VENDOR_LITEX`, `LITEX_LITEETH` -- the sonata config has
     `CONFIG_NET` off entirely, so the ethernet driver was not even reachable.
 
