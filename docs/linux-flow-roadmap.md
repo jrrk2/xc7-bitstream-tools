@@ -49,7 +49,14 @@ Kept outside the checkout: 28 MB of binaries do not belong in git.
 
 ## 1a. A release someone else can use -- later, and separately
 
-Distinct from the copy above, and not urgent.  What it needs beyond the
+**An interim FPGA-only release exists**, at `~/xc7-vc707-release/fpga-6a21aff/`:
+the bitstream, `csr.json`, `io.fasm`, the timing table, and a README recording
+the commit, all 14 submodule revisions and the database revision it was built
+from, plus the two `diff` commands that verify a rebuild.  The kernel and
+rootfs are deliberately absent -- bundling artifacts this repository cannot
+rebuild would make a release that is mostly not reproducible.
+
+What remains below is the rest, and it is not urgent.  What it needs beyond the
 snapshot is portability, because the board's addresses are compiled in:
 
 - **BOOTP/DHCP, so no address is baked into the bitstream.**  Two gaps, both
@@ -105,8 +112,23 @@ stage 1 done, there is now a released artifact to reproduce *against*.
   between hosts.  Whole-file FASM differs legitimately; the I/O lines must not.
 - Run `make vc707-litex-linux` from clean and boot the result.
 
-**Done when** a clean build on two machines reproduces the released bitstream's
-I/O FASM lines, and both boot.
+**Done so far.**  A from-scratch rebuild at `6a21aff` -- the commit HEAD was at
+when the known-good bitstream was written -- was flashed and booted Linux to a
+buildroot root shell.  It booted the *previous day's* emulator and dtb
+unchanged, because the CSR map did not move: `csr.json` differed only in
+`constants.config_identifier`, which carries the build timestamp.  DDR3
+calibrated, memtest passed at 62.1/64.3 MiB/s, the link came up, the SoC
+netbooted.
+
+That is the reproducibility that matters, and it holds.  The bitstream itself
+did not match byte for byte, and cannot -- see the contract.
+
+**Still open**: the macOS divergence.  Every declared input is now verified
+identical between the two hosts -- all 14 submodules, and `prjxray-db` at
+`5099b9e` -- so what remains is the host toolchain.  The outstanding
+measurement is the Mac's `io.fasm` against this host's.
+
+**Done when** the two hosts agree on `csr.json` and `io.fasm`, and both boot.
 
 ## 3. The canonical boot message, as a test
 
@@ -198,27 +220,42 @@ work, not just integration.
 
 ## The reproducibility contract
 
-**The goal is identical place-and-route results between platforms.**  Not a
-weaker equivalence -- the same FASM, byte for byte, from the same inputs on any
-host.  Where nextpnr does not currently deliver that, the cause is
-nondeterministic container iteration, which is a bug class to be fixed rather
-than a property to design around.
+**The goal is identical place-and-route results between platforms.**  Where
+nextpnr does not deliver that, the cause is nondeterministic container
+iteration -- a bug class to be fixed, not a property to design around.
 
-**The near-term gate is this host and GitHub.**  Both are Linux x86-64, so
-there is no excuse for them to differ at all, and that is what CI asserts:
+**But the near-term gate cannot be the whole FASM, and this was measured.**
+Three builds from identical inputs, identical flags, on one machine produced
+three different fabrics, differing in thousands of `INT_R`/`INT_L`
+interconnect and `CLBLM` logic lines and in total line count.  This host does
+not agree with itself, so "this host and GitHub agree on the whole FASM" is
+unreachable rather than merely unmet.
 
-1. **The whole FASM identical**, not merely the I/O lines.  Same inputs, same
-   file, on this host and on the runner.
-2. **Software binaries identical** modulo the compiled-in `__DATE__`/`__TIME__`
-   (`bios/main.c:214`).  Compare sizes and date-masked content, never raw hashes.
-3. **Every clock at or above its constraint** on setup.  Hold is excluded
+What *is* reproducible was measured in the same experiment, and is what CI
+asserts:
+
+1. **`csr.json` identical**, except `constants.config_identifier` which
+   carries the build timestamp.  This is the SoC's register map -- the
+   contract the emulator and the device tree depend on.  It is what let a
+   rebuilt bitstream boot the previous day's payload unchanged.
+2. **`io.fasm` identical** -- every `LIOB18`/`RIOB18`/`LIOI`/`RIOI` line,
+   sorted.  Byte-identical across all three runs despite the fabric churn
+   beneath it, and identical between the Linux and non-Linux variants of this
+   SoC, so it is a property of the board and its peripherals rather than of
+   one run.  This is the check that would have caught a dead RX path.
+3. **Software binaries identical** modulo the compiled-in `__DATE__`/`__TIME__`
+   (`bios/main.c:214`).  Compare sizes and date-masked content, never raw
+   hashes.
+4. **Every clock at or above its constraint** on setup.  Hold is excluded
    deliberately: this flow's hold STA reports violations on designs that
    demonstrably run, which is why the target passes `--timing-allow-fail`.
-4. **The extraction sweep unchanged** -- proved/differ counts from
+5. **The extraction sweep unchanged** -- proved/differ counts from
    `verify_examples.sh`.
-5. **Every input pinned**: all submodules, plus `PRJXRAY_DB_REV`.  The segbits
-   database decides which bits a FASM line sets, and was the only build input
-   not fixed by a submodule.
+6. **Every input pinned**: all submodules, plus `PRJXRAY_DB_REV`.
+
+A rebuilt `.bit` differing from a released one is expected and is not a
+regression.  Saying so is part of the contract, because the alternative is
+chasing it.
 
 **The database is the deliberate exception, and it runs on two tracks.**  CI
 tracks the *tip* of prjxray-db, because noticing the day upstream changes
@@ -227,18 +264,9 @@ check reports the difference in one line and carries on.  The pin is what
 makes a *release* reproducible, and there the same check fails the build.
 
 So a CI result and a local result are comparable only when the database
-revisions agree, and CI prints which one it used.  When they disagree and the
-FASM does too, that is upstream news rather than our regression -- and worth
-knowing either way.  The first run of this check found the runner on
-`6b8695ea3456` against `5099b9e` here, so every CI result before it was
-quoted against a database nobody had recorded.
-
-**Cross-platform, until determinism lands.**  macOS builds nextpnr against
-libc++ rather than libstdc++, and today that changes placement.  Until it does
-not, the cross-platform check is narrowed to the XDC-pinned I/O lines --
-`LIOB18`, `RIOB18`, `LIOI`, `RIOI` -- which are host-independent by
-construction, and which is the check that would have caught the dead RX path.
-Narrowing it is a concession to a present defect, not the definition of done.
+revisions agree, and CI prints which one it used.  The first run of this check
+found the runner on `6b8695ea3456` against `5099b9e` here, so every CI result
+before it was quoted against a database nobody had recorded.
 
 ## Open items carried alongside
 
@@ -249,10 +277,10 @@ Narrowing it is a concession to a present defect, not the definition of done.
 - `create_pblock` region support was offered too; valuable for ingesting Vivado
   constraints, not as a timing fix -- clock LOCs measurably made timing worse
   here (60.0 vs 91.3 MHz).
-- **nextpnr placement is not deterministic across platforms.**  This is the
-  open bug behind the narrowed cross-platform check above, and closing it is
-  what makes the contract's stated goal reachable.  Likely culprits are
-  pointer-keyed or hash-ordered containers whose iteration order feeds
-  placement decisions.
+- **nextpnr placement is not deterministic, even on one machine.**  Measured:
+  three builds, identical inputs and flags, three different fabrics.  Not a
+  cross-platform quirk -- a property of the tool.  Closing it is what makes
+  the contract's stated goal reachable; likely culprits are pointer-keyed or
+  hash-ordered containers whose iteration order feeds placement.
 - `build-linux.yml` has never run.  Hosted runners may not have the memory or
   the time for this design; stage 2 finds out.
