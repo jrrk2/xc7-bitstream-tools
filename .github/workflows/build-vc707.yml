@@ -130,10 +130,24 @@ jobs:
             yosys/yosys
             yosys/yosys-abc
             yosys/share
-          key: yosys-bin-${{ steps.keys.outputs.yosys }}-${{ runner.os }}
+          key: yosys-bin2-${{ steps.keys.outputs.yosys }}-${{ runner.os }}
+
+      # A cache hit is not the same as a usable yosys: the key names only the
+      # commit, so an entry saved with a shorter path list restores a yosys
+      # with no yosys-abc beside it, and -abc9 then fails with return code 127
+      # far from here.  Verify rather than assume, and rebuild if it is short.
+      - name: Check the restored yosys is complete
+        id: yosys-ok
+        run: |
+          if [ -x yosys/yosys ] && [ -x yosys/yosys-abc ]; then
+            echo "complete=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "restored yosys is incomplete (yosys-abc missing); rebuilding"
+            echo "complete=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build the pinned yosys
-        if: steps.cache-yosys.outputs.cache-hit != 'true'
+        if: steps.cache-yosys.outputs.cache-hit != 'true' || steps.yosys-ok.outputs.complete != 'true'
         run: |
           make yosys
           # 570 MB of debug symbols is not worth caching; the version string
@@ -149,7 +163,7 @@ jobs:
             yosys/yosys
             yosys/yosys-abc
             yosys/share
-          key: yosys-bin-${{ steps.keys.outputs.yosys }}-${{ runner.os }}
+          key: yosys-bin2-${{ steps.keys.outputs.yosys }}-${{ runner.os }}
 
       - name: Check no package-manager yosys crept back in
         run: bash scripts/check_no_apt_yosys.sh
