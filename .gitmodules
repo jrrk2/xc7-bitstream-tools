@@ -63,3 +63,7 @@
 	path = litex-deps/litesdcard
 	url = https://github.com/enjoy-digital/litesdcard
 	shallow = true
+[submodule "litex-deps/pythondata-cpu-vexriscv-smp"]
+	path = litex-deps/pythondata-cpu-vexriscv-smp
+	url = https://github.com/litex-hub/pythondata-cpu-vexriscv-smp
+	shallow = true
