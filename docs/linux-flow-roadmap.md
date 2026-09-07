@@ -22,11 +22,26 @@ everything `litex_liteeth` binds to: the `ethmac` CSR bank at `0xf0001800` and
 its buffers at `0x80000000` (rx) and `0x80001000` (tx), 4096 bytes each.  The
 device tree has no MAC node and the kernel has no driver -- both are software.
 
-**The kernel now booting cannot host either new driver.**  5.0.13 contains
-neither `litex_liteeth.c` nor `litex_mmc.c`.  `~/sonata-linux/linux-xip` is
-Linux 6.9.0 and carries both, plus `fixed_phy.c` and `irq-litex-vexriscv.c`.
-So "localise the image repositories" is not tidying that can happen whenever --
-it *is* the kernel migration, and ethernet and SDIO are both downstream of it.
+**The kernel now booting cannot drive our ethernet, and the reason is not the
+driver.**  It has one: `litex,liteeth` is in the Image, along with liteuart,
+gpio, pwm, spiflash, litespi, i2c and xadc -- it is a litex-hub tree, not a
+stock 5.0.13.  Adding a device tree node makes `eth0` appear with no kernel
+and no gateware rebuild, and the MAC receives: `writer_length` reads 232 with
+`ev_pending` set.
+
+What it cannot do is read that register.  `LITEX_SUBREG_SIZE` is compile-time,
+and that kernel is built for Arty's 8-bit CSR bus while this SoC is 32-bit
+("CSR: 32-bit data big ordering").  So `litex_read32` gathers four
+consecutive words and concatenates their low bytes -- length, errors,
+ev_status, ev_pending -- into `0xE88D0101`, and tries to allocate 3.9 GB for
+every empty poll.  The UART survives the mismatch only because `rxtx` is
+8 bits, where both layouts land on the same address.
+
+`~/sonata-linux/linux-xip` is Linux 6.9.0 with `LITEX_SUBREG_SIZE 0x4`, which
+matches this SoC, and carries `litex_mmc.c` as well -- which 5.0.13 genuinely
+does lack.  So "localise the image repositories" is not tidying that can
+happen whenever: it *is* the kernel migration, and ethernet and SDIO are both
+downstream of it.
 
 "Identical results in GitHub" is not a stage at all; it is the gate on every
 stage, and it needs a definition before it can gate anything.
@@ -188,9 +203,16 @@ rather than securing one.
 
 - Device tree gains an `ethernet@f0001800` node: `compatible = "litex,liteeth"`,
   `reg` covering the CSR bank plus the rx/tx buffers.
-- A `fixed-link` subnode at 1000/full.  This is the answer to ethmin's PHY
-  being a black box with no MDIO: `fixed_phy.c` is present, and the earlier
-  `libphy: Fixed MDIO Bus: probed` line confirms kernel support.
+- No `fixed-link`, and no PHY handling of any kind.  The driver never
+  registers an MDIO bus or attaches phylib -- `liteeth_open()` simply calls
+  `netif_carrier_on()`.  The earlier plan to declare a fixed link was wrong.
+- No `interrupts` either, at least at first: `platform_get_irq()` failing sets
+  `use_polling`, and a 50 ms timer removes any dependence on getting the 6.9
+  interrupt controller right before the datapath works.
+- Note LiteX's own `litex_json2dts_linux.py` emits *no* ethernet node for this
+  SoC: it is gated on an `ethphy` CSR, which a black-box PHY does not have.
+  The node has to be written by hand, or that generator taught about PHYs it
+  cannot see.
 - MAC address plumbed from the SoC rather than assumed.
 
 **Risk.**  The kernel jump is the real work, not the driver.
