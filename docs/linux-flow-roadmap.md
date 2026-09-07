@@ -226,7 +226,30 @@ rather than securing one.
 `irq-litex-vexriscv.c` must suit a SoC with neither a CLINT nor a PLIC, and the
 stage 3 golden transcript has to be rebased onto 6.9.
 
-**Done when** `ip link` shows the interface and userspace can TFTP from the board.
+**DONE.**  Linux 6.9 on the open-flow bitstream, ethernet working both ways:
+
+    liteeth f0001800.mac eth0: irq 0 slots: tx 2 rx 2 size 2048
+    64 bytes from 192.168.1.106: seq=0 ttl=64 time=35.028 ms
+
+and from the host, 3/3 with the neighbour entry REACHABLE.  The interface also
+picked up a global IPv6 address by SLAAC without being asked, which is
+independent evidence the receive path works rather than just the ping.
+
+It needed no gateware, as predicted.  What it did need was the kernel: the
+5.0.13 image has the driver but is compiled for an 8-bit CSR bus, and the
+2020 userspace predates the time32/time64 split so its libc calls syscall 73
+(`ppoll`), which riscv32 does not have.  Both were fixed by building rather
+than patching -- see `examples/vc707-litex-linux/kernel/` and `rootfs/`.
+
+Two things left on the interface itself, neither blocking:
+
+- It polls.  `platform_get_irq()` fails because no interrupt controller is
+  described, so the driver falls back to a 50 ms timer.  Latency is 7-16 ms
+  round trip against a host on the same switch.  Wiring the interrupt would
+  need `irq-litex-vexriscv` and a DT node.
+- `syslogd` takes a SIGSEGV at startup -- a word store to 0x13 inside busybox,
+  `cause: 0x0f`.  The boot survives it and continues, but it is a real defect
+  and may be a busybox/glibc rv32 interaction rather than a one-off.
 
 ## 6. Four-bit SDIO for mass storage
 
