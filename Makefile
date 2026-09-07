@@ -1,4 +1,4 @@
-.PHONY: help setup litex-deps prjxray-db tftp-serve tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: vc707-litex-ddr-ethmin-smpsd help setup litex-deps prjxray-db tftp-serve tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 # Values that are properties of a machine rather than of the project --
@@ -488,6 +488,41 @@ vc707-litex-ddr-ethmin: fasm2netlist nextpnr
 		--db $(PRJXRAY_DB) --fasm $(LITEX_DDRETHMIN_DIR)/build-openXC7/gateware/$(LITEX_TOP).fasm \
 		--output $(LITEX_DDRETHMIN_OUT)
 	@echo "built $(LITEX_DDRETHMIN_OUT) -- flash with 'make vc707-litex-ddr-ethmin-flash'"
+
+# The same SoC the Vivado SMP+SD build produces, through the open flow.
+# VexRiscv-SMP needs two more sources than plain VexRiscv: the cluster
+# LiteX generates into the build directory, whose name encodes the config
+# (cache sizes, TLB sets, wishbone memory), and the generic RAM primitive
+# it instantiates.  The cluster file is found by glob rather than named,
+# so a config change does not silently synthesise a stale netlist.
+SMPSD_DIR ?= $(LITEX_DDRETHMIN_DIR)/build-smpsd-openXC7
+SMPSD_OUT ?= litex_ddr_ethmin_smpsd_vc707.bit
+SMPSD_RAM ?= $(CURDIR)/litex-deps/pythondata-cpu-vexriscv-smp/pythondata_cpu_vexriscv_smp/verilog/Ram_1w_1rs_Generic.v
+
+vc707-litex-ddr-ethmin-smpsd: fasm2netlist nextpnr
+	@scripts/pinned_yosys.sh >/dev/null
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
+	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
+	rm -rf $(SMPSD_DIR)
+	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
+		--with-led-chaser --cpu-type vexriscv_smp --cpu-variant linux --cpu-count 1 \
+		--hardware-breakpoints 0 --with-wishbone-memory --with-ddr --with-ethmin-phy \
+		--with-sdcard --flow openXC7 --no-compile-gateware --build \
+		$(if $(LITEX_REMOTE_IP),--remote-ip $(LITEX_REMOTE_IP)) \
+		--output-dir $(SMPSD_DIR)
+	cd $(SMPSD_DIR)/gateware && $(PINNED_YOSYS) -q -p \
+		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+		$(SMPSD_RAM) $$(ls VexRiscvLitexSmpCluster_*.v) $(ETHMIN_PHY_V) $(LITEX_TOP).v
+	$(NEXTPNR_BIN) --device $(LITEX_PART) \
+		-o xdc=$(SMPSD_DIR)/gateware/$(LITEX_TOP).xdc \
+		--json $(SMPSD_DIR)/gateware/$(LITEX_TOP).json \
+		-o fasm=$(SMPSD_DIR)/gateware/$(LITEX_TOP).fasm \
+		--router router2 $(NEXTPNR_FLAGS)
+	$(MAKE) check-fasm FASM=$(SMPSD_DIR)/gateware/$(LITEX_TOP).fasm PRJXRAY_DB=$(PRJXRAY_DB)
+	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 --part $(LITEX_PART) \
+		--db $(PRJXRAY_DB) --fasm $(SMPSD_DIR)/gateware/$(LITEX_TOP).fasm \
+		--output $(SMPSD_OUT)
+	@echo "built $(SMPSD_OUT)"
 
 # Linux, through the open flow.  See examples/vc707-litex-linux/README.md.
 vc707-litex-linux: tools fasm2netlist nextpnr
