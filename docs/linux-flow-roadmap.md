@@ -311,12 +311,35 @@ have.  The nearer path is cross-compiled binaries on the card, with native
 nextpnr does not deliver that, the cause is nondeterministic container
 iteration -- a bug class to be fixed, not a property to design around.
 
-**But the near-term gate cannot be the whole FASM, and this was measured.**
-Three builds from identical inputs, identical flags, on one machine produced
-three different fabrics, differing in thousands of `INT_R`/`INT_L`
-interconnect and `CLBLM` logic lines and in total line count.  This host does
-not agree with itself, so "this host and GitHub agree on the whole FASM" is
-unreachable rather than merely unmet.
+**The near-term gate is the whole FASM, and it is reachable.**  An earlier
+version of this document claimed otherwise, on the strength of three builds
+that produced three different fabrics.  That test was invalid: it regenerated
+the SoC each run, and the LiteX BIOS bakes `__DATE__`/`__TIME__` into its ROM,
+so every run fed nextpnr a different netlist -- the three JSONs hash
+`5288f3c4`, `bc15b356`, `6081af76`.  The input was walking, not the placer.
+
+Rerun properly, with the netlist held fixed, nextpnr produced byte-identical
+FASM twice over, and identical to the original run: `a204ba4f97542142` from
+netlist `5288f3c4f0873d97`.  nextpnr's seed is fixed by default; `--seed`
+exists to change results deliberately, not to stabilise them.
+
+So for a fixed (binary, netlist, chipdb, seed) the output is reproducible, and
+when it is not, an input is moving.  In order of what has actually bitten this
+ecosystem:
+
+1. **The nextpnr binary.**  `placer_heap` solves with Eigen, and Eigen 3.4 vs
+   5.x give different placements from the same git revision.  A CI image that
+   updates Eigen quietly hands you a different nextpnr under an unchanged rev.
+2. **The netlist.**  LiteX regenerates the SoC and the BIOS each run, and an
+   unpinned yosys moves underneath.  Hash the `.json`: if two runs differ
+   there, the walk is upstream of place-and-route entirely.
+3. **Threading**, where any parallel refinement is enabled.  Use defaults
+   while chasing this.
+
+CI should print five things per run -- yosys json sha256, chipdb bin sha256,
+nextpnr binary sha256, output fasm sha256, and the Eigen version.  The first
+line that differs between two runs is the cause and the rest are consequence.
+This would have caught the above in one run rather than a day.
 
 What *is* reproducible was measured in the same experiment, and is what CI
 asserts:
@@ -376,10 +399,10 @@ before it was quoted against a database nobody had recorded.
 - `create_pblock` region support was offered too; valuable for ingesting Vivado
   constraints, not as a timing fix -- clock LOCs measurably made timing worse
   here (60.0 vs 91.3 MHz).
-- **nextpnr placement is not deterministic, even on one machine.**  Measured:
-  three builds, identical inputs and flags, three different fabrics.  Not a
-  cross-platform quirk -- a property of the tool.  Closing it is what makes
-  the contract's stated goal reachable; likely culprits are pointer-keyed or
-  hash-ordered containers whose iteration order feeds placement.
+- **The macOS divergence is most likely Eigen**, not the C++ standard library
+  as first supposed.  This host builds nextpnr against Eigen 3.4.0; Homebrew
+  ships 5.x.  `scripts/eigen_check.sh` and `eigen-kit.tar.gz` test it
+  directly, running one fixed netlist through nextpnr built both ways and
+  comparing against the Linux FASM.
 - `build-linux.yml` has never run.  Hosted runners may not have the memory or
   the time for this design; stage 2 finds out.

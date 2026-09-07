@@ -278,7 +278,7 @@ class EthminSGMIIPHY(LiteXModule):
 class BaseSoC(SoCCore):
     def __init__(self, sys_clk_freq=SYS_CLK_FREQ, with_led_chaser=True,
                  with_ethernet=False, with_ethmin_phy=False, with_ddr=False,
-                 with_sdcard=False,
+                 with_sdcard=False, sdcard_debug=False,
                  flow="unknown",
                  local_ip=LOCAL_IP, remote_ip=REMOTE_IP,
                  mac_address=MAC_ADDRESS, tftp_port=TFTP_PORT, **kwargs):
@@ -494,7 +494,7 @@ class BaseSoC(SoCCore):
         # litex_json2dts_linux.py emits the litex,mmc node itself, with
         # bus-width = <4>, and the kernel has CONFIG_MMC_LITEX=y already.
         if with_sdcard:
-            self.add_sdcard()
+            self.add_sdcard(software_debug=sdcard_debug)
 
         if with_led_chaser:
             self.leds = LedChaser(
@@ -528,6 +528,10 @@ def main():
     parser.add_target_argument("--with-ddr", action="store_true",
                                help="Enable the DDR3 SODIMM through the V7DDRPHY.  Selects a "
                                     "different clock generator; see _CRGDDR.")
+    parser.add_target_argument("--sdcard-debug", action="store_true",
+                               help="Add the sdcard_DEBUG constant, which makes the BIOS print "
+                                    "SD card diagnostics.  For bring-up: this is the first "
+                                    "bitstream with LiteSDCard in it.")
     parser.add_target_argument("--with-sdcard", action="store_true",
                                help="Enable the 4-bit SD card through LiteSDCard.  The VC707 "
                                     "platform already defines the pins (clk AN30, cmd AP30, "
@@ -551,6 +555,7 @@ def main():
         with_ethmin_phy=args.with_ethmin_phy,
         with_ddr=args.with_ddr,
         with_sdcard=args.with_sdcard,
+        sdcard_debug=args.sdcard_debug,
         local_ip=args.local_ip,
         remote_ip=args.remote_ip,
         mac_address=args.mac_address,
