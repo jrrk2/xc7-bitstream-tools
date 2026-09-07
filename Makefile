@@ -1,4 +1,4 @@
-.PHONY: help setup litex-deps tftp-serve tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: help setup litex-deps prjxray-db tftp-serve tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 # Values that are properties of a machine rather than of the project --
@@ -14,6 +14,12 @@ PART ?= xc7a50tcsg324-1
 # Defaults to the checkout the setup instructions and CI both make; override
 # to point at a database elsewhere.
 PRJXRAY_DB ?= .deps/prjxray-db
+# ...and pinned, because this is the only build input not fixed by a git
+# submodule, and it is the one that decides which bits a FASM line sets.  Two
+# machines on the same commit of this repository, with different databases
+# here, place and time identically and write different bitstreams -- a
+# difference that shows up on hardware and nowhere in the build log.
+PRJXRAY_DB_REV ?= 5099b9edaf52c882295fa7a6d5bcd9abca5bf154
 # cmake's chipdb generator runs with its working directory set to the build
 # tree, so a database path given relative to here does not resolve there --
 # it fails looking for <device>/tilegrid.json.  Make it absolute up front.
@@ -195,7 +201,7 @@ ETHMIN_SRCS := $(shell sed -e '/^[[:space:]]*\#/d' -e 's/[[:space:]][[:space:]]*
 
 vc707-ethmin: fasm2netlist nextpnr
 	@scripts/pinned_yosys.sh >/dev/null
-	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "no Project X-Ray database at $(PRJXRAY_DB)"; echo "  git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db"; echo "  (or build with PRJXRAY_DB=/path/to/prjxray-db)"; exit 2; }
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	cd $(ETHMIN_DIR) && $(PINNED_YOSYS) -q -p 'read_verilog -sv $(ETHMIN_SRCS); synth_xilinx -flatten -abc9 -arch xc7 -top $(ETHMIN_TOP); write_json $(ETHMIN_TOP).json'
 	$(NEXTPNR_BIN) --device $(ETHMIN_PART) -o xdc=$(ETHMIN_DIR)/$(ETHMIN_TOP).xdc \
 		--json $(ETHMIN_DIR)/$(ETHMIN_TOP).json \
@@ -217,7 +223,7 @@ vc707-ethmin-flash:
 
 vc707-litex: fasm2netlist nextpnr
 	@scripts/pinned_yosys.sh >/dev/null
-	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "no Project X-Ray database at $(PRJXRAY_DB)"; echo "  git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db"; echo "  (or build with PRJXRAY_DB=/path/to/prjxray-db)"; exit 2; }
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	@test -f "$(LITEX_GATEWARE)/$(LITEX_TOP).v" || { echo "no generated gateware; run 'make vc707-litex-gen' first"; exit 2; }
 	cd $(LITEX_GATEWARE) && $(PINNED_YOSYS) -q -p \
 		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
@@ -242,6 +248,13 @@ vc707-litex: fasm2netlist nextpnr
 LITEX_PKGS = migen litex litex-boards liteeth litedram \
              pythondata-cpu-serv pythondata-cpu-vexriscv \
              pythondata-software-picolibc pythondata-software-compiler_rt
+
+# The segbits database, pinned.  Not a submodule because it is not this
+# project's to carry, but pinned all the same -- see scripts/prjxray_db.sh for
+# why an unpinned one is worse than a missing one.
+prjxray-db:
+	@scripts/prjxray_db.sh --fetch "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
+	@echo "Project X-Ray database at $(PRJXRAY_DB), pinned at $(PRJXRAY_DB_REV)"
 
 litex-deps:
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
@@ -286,7 +299,7 @@ vc707-litex-gen:
 # blocked, with the reason -- not as a failure, and not silently.
 vc707-litex-verify: fasm2netlist nextpnr
 	@scripts/pinned_yosys.sh >/dev/null
-	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "no Project X-Ray database at $(PRJXRAY_DB)"; echo "  git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db"; echo "  (or build with PRJXRAY_DB=/path/to/prjxray-db)"; exit 2; }
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	YOSYS=$(PINNED_YOSYS) NEXTPNR_BIN=$(NEXTPNR_BIN) PRJXRAY_DB=$(PRJXRAY_DB) \
 		TILEVERILOG=$(TILEVERILOG) LVS_EQUIV=$(LVS_EQUIV) OUT=$(VERIFY_DIR)/examples \
 		scripts/verify_examples.sh vc707-litex
@@ -344,7 +357,7 @@ yosys:
 	@echo "built $$($(YOSYS_BIN) -V)"
 
 nextpnr:
-	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "no Project X-Ray database at $(PRJXRAY_DB)"; echo "  git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db"; echo "  (or build with PRJXRAY_DB=/path/to/prjxray-db)"; exit 2; }
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	cmake -S $(NEXTPNR_DIR) -B $(NEXTPNR_BUILD) -DARCH=himbaechel -DHIMBAECHEL_UARCH=xilinx \
 		-DBUILD_GUI=OFF -DBUILD_PYTHON=OFF -DHIMBAECHEL_XILINX_DEVICES="xc7a50t;xc7vx485t" \
 		-DHIMBAECHEL_PRJXRAY_DB=$(PRJXRAY_DB)
@@ -452,7 +465,7 @@ vc707-litex-eth-flash-vivado:
 #     default the GMII datapath lands 60-120 MHz across identical runs.
 vc707-litex-ddr-ethmin: fasm2netlist nextpnr
 	@scripts/pinned_yosys.sh >/dev/null
-	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "no Project X-Ray database at $(PRJXRAY_DB)"; echo "  git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db"; echo "  (or build with PRJXRAY_DB=/path/to/prjxray-db)"; exit 2; }
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
 	@$(PYTHON) -c 'import liteeth, litedram, pythondata_cpu_vexriscv' 2>/dev/null || { \
 	  echo "LiteX packages missing from $(PYTHON); run: make litex-deps"; exit 2; }
@@ -482,7 +495,7 @@ vc707-litex-linux: fasm2netlist nextpnr
 	@test -n "$(LITEX_REMOTE_IP)" || { echo "could not work out this host's IP; pass LITEX_REMOTE_IP=..."; exit 2; }
 	@echo "network boot will look for a TFTP server at $(LITEX_REMOTE_IP)"
 	@echo "  (serve it with 'make tftp-serve'; override with LITEX_REMOTE_IP=...)"
-	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "no Project X-Ray database at $(PRJXRAY_DB)"; echo "  git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db"; echo "  (or build with PRJXRAY_DB=/path/to/prjxray-db)"; exit 2; }
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	rm -rf $(LINUX_BUILD)
 	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
 		--with-led-chaser --cpu-type vexriscv --cpu-variant linux \
@@ -594,7 +607,7 @@ endif
 # not cover are printed with the reason rather than left out.
 verify-examples: fasm2netlist nextpnr
 	@scripts/pinned_yosys.sh >/dev/null
-	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "no Project X-Ray database at $(PRJXRAY_DB)"; echo "  git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db"; echo "  (or build with PRJXRAY_DB=/path/to/prjxray-db)"; exit 2; }
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	YOSYS=$(PINNED_YOSYS) NEXTPNR_BIN=$(NEXTPNR_BIN) PRJXRAY_DB=$(PRJXRAY_DB) \
 		TILEVERILOG=$(TILEVERILOG) LVS_EQUIV=$(LVS_EQUIV) OUT=$(VERIFY_DIR)/examples \
 		scripts/verify_examples.sh $(DESIGNS)
@@ -603,7 +616,7 @@ sonata:
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
 	@test -n "$(FASM)" || { echo "FASM must name an existing implementation output"; exit 2; }
 	@test -f "$(FASM)" || { echo "FASM not found: $(FASM)"; exit 2; }
-	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "no Project X-Ray database at $(PRJXRAY_DB)"; echo "  git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db"; echo "  (or build with PRJXRAY_DB=/path/to/prjxray-db)"; exit 2; }
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 --board sonata \
 		--part $(PART) --db $(PRJXRAY_DB) --fasm $(FASM) --output $(OUT)
 
@@ -611,7 +624,7 @@ vc707:
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
 	@test -n "$(VC707_FASM)" || { echo "VC707_FASM must name an existing VC707 implementation output"; exit 2; }
 	@test -f "$(VC707_FASM)" || { echo "VC707_FASM not found: $(VC707_FASM)"; exit 2; }
-	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "no Project X-Ray database at $(PRJXRAY_DB)"; echo "  git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db"; echo "  (or build with PRJXRAY_DB=/path/to/prjxray-db)"; exit 2; }
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 \
 		--part $(VC707_PART) --db $(PRJXRAY_DB) --fasm $(VC707_FASM) --output $(VC707_OUT)
 
@@ -619,7 +632,7 @@ validate-bitstream:
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
 	@test -n "$(BIT)" && test -f "$(BIT)" || { echo "BIT must name an existing XC7 bitstream"; exit 2; }
 	@test -n "$(TESTBENCH)" && test -f "$(TESTBENCH)" || { echo "TESTBENCH must name an existing Verilator testbench"; exit 2; }
-	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "no Project X-Ray database at $(PRJXRAY_DB)"; echo "  git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db"; echo "  (or build with PRJXRAY_DB=/path/to/prjxray-db)"; exit 2; }
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	$(PYTHON) scripts/validate_bitstream.py --part $(PART) --db $(PRJXRAY_DB) \
 		--bit $(BIT) --testbench $(TESTBENCH) --output-dir $(VALIDATION_DIR)
 
@@ -667,7 +680,7 @@ sat-match: fasm2netlist
 # of names -- and fabric_named.v carries the design's own names, for reading.
 verify-extraction: fasm2netlist
 	@test -n "$(V_FASM)" || { echo "verify-extraction needs V_FASM=..."; exit 2; }
-	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "no Project X-Ray database at $(PRJXRAY_DB)"; echo "  git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db"; echo "  (or build with PRJXRAY_DB=/path/to/prjxray-db)"; exit 2; }
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	@scripts/pinned_yosys.sh >/dev/null
 	@mkdir -p $(VERIFY_DIR)/$(V_NAME)
 	$(TILEVERILOG) --fasm $(V_FASM) --db $(PRJXRAY_DB)/$(V_FAMILY) --device $(V_DEVICE) \
@@ -696,7 +709,7 @@ CHECK_FAMILY ?= virtex7
 CHECK_PART ?= xc7vx485tffg1761-2
 check-fasm:
 	@test -n "$(FASM)" || { echo "check-fasm needs FASM=..."; exit 2; }
-	@test -n "$(PRJXRAY_DB)" && test -d "$(PRJXRAY_DB)" || { echo "no Project X-Ray database at $(PRJXRAY_DB)"; echo "  git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db"; echo "  (or build with PRJXRAY_DB=/path/to/prjxray-db)"; exit 2; }
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	scripts/check_fasm_expressible.py $(PRJXRAY_DB)/$(CHECK_FAMILY) $(CHECK_PART) $(FASM)
 
 clean:
