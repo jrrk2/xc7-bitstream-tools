@@ -44,3 +44,8 @@
 [submodule "litex-deps/pythondata-cpu-vexriscv"]
 	path = litex-deps/pythondata-cpu-vexriscv
 	url = https://github.com/litex-hub/pythondata-cpu-vexriscv
+[submodule "linux-deps/linux"]
+	path = linux-deps/linux
+	url = https://github.com/jrrk2/linux
+	branch = rv32-sonata-litex
+	shallow = true

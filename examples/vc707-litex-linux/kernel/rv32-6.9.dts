@@ -1,0 +1,92 @@
+/dts-v1/;
+
+/ {
+	#address-cells = <0x02>;
+	#size-cells = <0x02>;
+	compatible = "enjoy-digital,litex-vexriscv-soclinux";
+	model = "VexRiscv SoCLinux on VC707 (open flow)";
+
+	chosen {
+		bootargs = "mem=512M@0x40000000 rootwait console=liteuart earlycon=sbi root=/dev/ram0 rdinit=/bin/sh swiotlb=32";
+		linux,initrd-start = <0x40800000>;
+		linux,initrd-end = <0x40bdfe00>;
+	};
+
+	cpus {
+		#address-cells = <0x01>;
+		#size-cells = <0x00>;
+		timebase-frequency = <0x5f5e100>;
+
+		cpu@0 {
+			clock-frequency = <0x00>;
+			compatible = "spinalhdl,vexriscv\0sifive,rocket0\0riscv";
+			d-cache-block-size = <0x40>;
+			d-cache-sets = <0x40>;
+			d-cache-size = <0x8000>;
+			d-tlb-sets = <0x01>;
+			d-tlb-size = <0x20>;
+			device_type = "cpu";
+			i-cache-block-size = <0x40>;
+			i-cache-sets = <0x40>;
+			i-cache-size = <0x8000>;
+			i-tlb-sets = <0x01>;
+			i-tlb-size = <0x20>;
+			mmu-type = "riscv,sv32";
+			reg = <0x00>;
+			riscv,isa = "rv32ima";
+			riscv,isa-base = "rv32i";
+			riscv,isa-extensions = "i", "m", "a", "zicsr", "zifencei";
+			sifive,itim = <0x01>;
+			status = "okay";
+			tlb-split;
+
+			interrupt-controller {
+				#interrupt-cells = <0x01>;
+				compatible = "riscv,cpu-intc";
+				interrupt-controller;
+				phandle = <0x01>;
+			};
+		};
+	};
+
+	memory@40000000 {
+		device_type = "memory";
+		reg = <0x00 0x40000000 0x00 0x20000000>;
+	};
+
+	soc {
+		#address-cells = <0x02>;
+		#size-cells = <0x02>;
+		compatible = "simple-bus";
+		ranges;
+
+		soc_ctrl@f0000800 {
+			compatible = "litex,soc-controller";
+			reg = <0x00 0xf0000800 0x00 0x0c>;
+			status = "okay";
+		};
+
+		mac@f0001800 {
+			compatible = "litex,liteeth";
+			reg = <0x00 0xf0001800 0x00 0x7c>,
+			      <0x00 0x80000000 0x00 0x2000>;
+			reg-names = "mac", "buffer";
+			litex,rx-slots = <0x02>;
+			litex,tx-slots = <0x02>;
+			litex,slot-size = <0x800>;
+			local-mac-address = [10 e2 d5 00 00 07];
+			status = "okay";
+		};
+
+		serial@f0004000 {
+			device_type = "serial";
+			compatible = "litex,liteuart";
+			reg = <0x00 0xf0004000 0x00 0x100>;
+			status = "okay";
+		};
+	};
+
+	aliases {
+		serial0 = "/soc/serial@f0004000";
+	};
+};
