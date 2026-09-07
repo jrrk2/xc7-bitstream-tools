@@ -11,3 +11,11 @@ if [ -d "$TARGET/etc/dropbear" ]; then
     chmod 700 "$TARGET/etc/dropbear"
     find "$TARGET/etc/dropbear" -name 'dropbear_*_host_key' -exec chmod 600 {} +
 fi
+
+# Dropbear refuses a key when ~/.ssh or authorized_keys is group- or
+# world-writable.  The overlay copy makes them 0644/0755, which happens to
+# pass, but set the conventional modes rather than depend on that.
+if [ -d "$TARGET/root/.ssh" ]; then
+    chmod 700 "$TARGET/root/.ssh"
+    [ -f "$TARGET/root/.ssh/authorized_keys" ] && chmod 600 "$TARGET/root/.ssh/authorized_keys"
+fi
