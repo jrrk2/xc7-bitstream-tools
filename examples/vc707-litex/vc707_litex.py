@@ -278,6 +278,7 @@ class EthminSGMIIPHY(LiteXModule):
 class BaseSoC(SoCCore):
     def __init__(self, sys_clk_freq=SYS_CLK_FREQ, with_led_chaser=True,
                  with_ethernet=False, with_ethmin_phy=False, with_ddr=False,
+                 with_sdcard=False,
                  flow="unknown",
                  local_ip=LOCAL_IP, remote_ip=REMOTE_IP,
                  mac_address=MAC_ADDRESS, tftp_port=TFTP_PORT, **kwargs):
@@ -298,7 +299,8 @@ class BaseSoC(SoCCore):
         variant = "+".join(["LiteX SoC on VC707"]
                            + (["DDR3"] if with_ddr else [])
                            + (["LiteEth"] if with_ethernet else [])
-                           + (["LiteEth/ethmin"] if with_ethmin_phy else []))
+                           + (["LiteEth/ethmin"] if with_ethmin_phy else [])
+                           + (["SDCard"] if with_sdcard else []))
         SoCCore.__init__(self, platform, sys_clk_freq,
                          ident=f"{variant} [{flow}]", **kwargs)
 
@@ -479,6 +481,21 @@ class BaseSoC(SoCCore):
                 platform.add_platform_command(
                     "set_property LOC {site} [get_cells {cell}]".format(site=site, cell=cell))
 
+        # 4-bit SD card.  The VC707 platform already defines the pins -- clk
+        # AN30, cmd AP30, data AR30/AU31/AV31/AT30, det AP32, wp AR32, all
+        # LVCMOS18 -- so 4-bit width costs no pin work.  What it costs is
+        # fabric: add_sdcard() brings an SDPHY, an SDCore and two DMA masters
+        # on the Wishbone bus, onto a design that already carries the MMU CPU,
+        # 99 DDR3 serialisers and a transceiver, and that only closes timing
+        # with --placer-heap-timingweight 60.  Treat a timing regression here
+        # as information about the placer, not as a reason to hand-place.
+        #
+        # Nothing needs writing on the Linux side: once these CSRs exist,
+        # litex_json2dts_linux.py emits the litex,mmc node itself, with
+        # bus-width = <4>, and the kernel has CONFIG_MMC_LITEX=y already.
+        if with_sdcard:
+            self.add_sdcard()
+
         if with_led_chaser:
             self.leds = LedChaser(
                 pads=platform.request_all("user_led"),
@@ -511,6 +528,13 @@ def main():
     parser.add_target_argument("--with-ddr", action="store_true",
                                help="Enable the DDR3 SODIMM through the V7DDRPHY.  Selects a "
                                     "different clock generator; see _CRGDDR.")
+    parser.add_target_argument("--with-sdcard", action="store_true",
+                               help="Enable the 4-bit SD card through LiteSDCard.  The VC707 "
+                                    "platform already defines the pins (clk AN30, cmd AP30, "
+                                    "data AR30/AU31/AV31/AT30, LVCMOS18), so this needs no pin "
+                                    "work -- but it adds a PHY, a core and two DMA masters to a "
+                                    "design that only closes timing with a raised placer "
+                                    "timing weight.")
     parser.add_target_argument("--flow", default="unknown",
                                help="Name of the implementation flow this build is for; "
                                     "reported by the BIOS 'ident' command.")
@@ -526,6 +550,7 @@ def main():
         with_ethernet=args.with_ethernet,
         with_ethmin_phy=args.with_ethmin_phy,
         with_ddr=args.with_ddr,
+        with_sdcard=args.with_sdcard,
         local_ip=args.local_ip,
         remote_ip=args.remote_ip,
         mac_address=args.mac_address,

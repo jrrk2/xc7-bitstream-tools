@@ -59,3 +59,7 @@
 	url = https://github.com/jrrk2/linux-on-litex-vexriscv
 	branch = sonata
 	shallow = true
+[submodule "litex-deps/litesdcard"]
+	path = litex-deps/litesdcard
+	url = https://github.com/enjoy-digital/litesdcard
+	shallow = true

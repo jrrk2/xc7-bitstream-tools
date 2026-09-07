@@ -245,7 +245,7 @@ vc707-litex: fasm2netlist nextpnr
 # checked-out submodule commit is what runs.  The guards below point here
 # rather than each naming its own partial set: a fresh checkout otherwise
 # discovers the dependencies one failure at a time.
-LITEX_PKGS = migen litex litex-boards liteeth litedram \
+LITEX_PKGS = migen litex litex-boards liteeth litedram litesdcard \
              pythondata-cpu-serv pythondata-cpu-vexriscv \
              pythondata-software-picolibc pythondata-software-compiler_rt
 
