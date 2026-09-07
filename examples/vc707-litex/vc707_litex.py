@@ -278,7 +278,7 @@ class EthminSGMIIPHY(LiteXModule):
 class BaseSoC(SoCCore):
     def __init__(self, sys_clk_freq=SYS_CLK_FREQ, with_led_chaser=True,
                  with_ethernet=False, with_ethmin_phy=False, with_ddr=False,
-                 with_sdcard=False, sdcard_debug=False,
+                 with_sdcard=False, with_spi_sdcard=False, sdcard_debug=False,
                  flow="unknown",
                  local_ip=LOCAL_IP, remote_ip=REMOTE_IP,
                  mac_address=MAC_ADDRESS, tftp_port=TFTP_PORT, **kwargs):
@@ -300,7 +300,8 @@ class BaseSoC(SoCCore):
                            + (["DDR3"] if with_ddr else [])
                            + (["LiteEth"] if with_ethernet else [])
                            + (["LiteEth/ethmin"] if with_ethmin_phy else [])
-                           + (["SDCard"] if with_sdcard else []))
+                           + (["SDCard"] if with_sdcard else [])
+                           + (["SPI-SDCard"] if with_spi_sdcard else []))
         SoCCore.__init__(self, platform, sys_clk_freq,
                          ident=f"{variant} [{flow}]", **kwargs)
 
@@ -493,8 +494,22 @@ class BaseSoC(SoCCore):
         # Nothing needs writing on the Linux side: once these CSRs exist,
         # litex_json2dts_linux.py emits the litex,mmc node itself, with
         # bus-width = <4>, and the kernel has CONFIG_MMC_LITEX=y already.
+        if with_sdcard and with_spi_sdcard:
+            raise ValueError("--with-sdcard and --with-spi-sdcard drive the same "
+                             "four pins in different modes; pick one")
+
         if with_sdcard:
             self.add_sdcard(software_debug=sdcard_debug)
+
+        # SPI mode: clk AN30, mosi AP30 (the card's CMD), miso AR30 (DAT0),
+        # cs_n AT30 (DAT3).  One data line instead of four, and no parallel
+        # CRC -- which is the part that does not work on this board.  A CVA6
+        # build reads this same card and its GPT correctly in this mode, on
+        # these pins, where LiteSDCard's 4-bit path fails every 512-byte
+        # transfer above 400 kHz.
+        if with_spi_sdcard:
+            self.add_spi_sdcard(spi_clk_freq=(1e6 if sdcard_debug else 10e6),
+                                software_debug=sdcard_debug)
 
         if with_led_chaser:
             self.leds = LedChaser(
@@ -532,6 +547,11 @@ def main():
                                help="Add the sdcard_DEBUG constant, which makes the BIOS print "
                                     "SD card diagnostics.  For bring-up: this is the first "
                                     "bitstream with LiteSDCard in it.")
+    parser.add_target_argument("--with-spi-sdcard", action="store_true",
+                               help="Enable the SD card in SPI mode -- four wires on the same "
+                                    "pins as --with-sdcard, one data line, no parallel CRC.  "
+                                    "Slower, but it is the mode a CVA6 build reads this card "
+                                    "with on this board.")
     parser.add_target_argument("--with-sdcard", action="store_true",
                                help="Enable the 4-bit SD card through LiteSDCard.  The VC707 "
                                     "platform already defines the pins (clk AN30, cmd AP30, "
@@ -555,6 +575,7 @@ def main():
         with_ethmin_phy=args.with_ethmin_phy,
         with_ddr=args.with_ddr,
         with_sdcard=args.with_sdcard,
+        with_spi_sdcard=args.with_spi_sdcard,
         sdcard_debug=args.sdcard_debug,
         local_ip=args.local_ip,
         remote_ip=args.remote_ip,

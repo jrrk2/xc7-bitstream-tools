@@ -20,8 +20,10 @@
 # Usage:  ./eigen_check.sh <path-to-xilinx_vc707.json> <path-to-xilinx_vc707.xdc>
 set -euo pipefail
 
-JSON=${1:?need the reference json}
-XDC=${2:?need the reference xdc}
+# Absolute, because the Eigen build below changes directory and a relative
+# path stops resolving -- which is exactly how the second run failed.
+JSON=$(cd "$(dirname "${1:?need the reference json}")" && pwd)/$(basename "$1")
+XDC=$(cd "$(dirname "${2:?need the reference xdc}")" && pwd)/$(basename "$2")
 # Find the checkout: walk up from here until we see nextpnr/ and .deps/.
 # The kit is normally unpacked *inside* the checkout, so $0's directory is
 # one level too deep.  XC7_ROOT overrides if the layout is unusual.
@@ -72,6 +74,10 @@ done
 
 run_pnr() {   # $1 = label, $2 = extra cmake args
   local label=$1; shift
+  if [ -s "$ROOT/$label.fasm" ]; then           # reuse a completed run
+      shasum -a 256 <"$ROOT/$label.fasm" | cut -d' ' -f1
+      return
+  fi
   rm -rf "$ROOT/build-$label"
   cmake -S "$ROOT/nextpnr" -B "$ROOT/build-$label" \
         -DARCH=himbaechel -DHIMBAECHEL_UARCH=xilinx \
