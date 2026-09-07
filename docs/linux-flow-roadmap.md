@@ -264,9 +264,21 @@ has never been measured; record it (`/usr/bin/time -v`) on the next run.
 
 Worth separating two ambitions that sound alike: *running* a prebuilt nextpnr
 on the board is a memory question, and plausible at 1 GiB with swap.
-*Building* nextpnr there is a different order of problem -- C++ template
-instantiation peaks in the gigabytes per translation unit, on a core roughly
-three orders of magnitude slower than the host.
+*Building* nextpnr there is harder -- C++ template instantiation peaks in the
+gigabytes per translation unit.
+
+On a VexRiscv rv32ima at 100 MHz that is about two orders of magnitude slower
+than one host core, not three; a Rocket RV64 would be at the better end of
+that.  But speed is the smaller obstacle.  **rv32 caps user address space at
+around 3 GiB**, and a translation unit that wants more than that does not
+compile slowly -- it does not compile.  Swap does not help, because the limit
+is address space rather than memory.
+
+So native compilation is an argument for a 64-bit core rather than for more
+RAM, and that is a much larger change than stage 6: Rocket is a far bigger
+design than VexRiscv, on a flow that only just closes timing with the CPU we
+have.  The nearer path is cross-compiled binaries on the card, with native
+*running* as the target and native *building* left as a separate question.
 
 ---
 
