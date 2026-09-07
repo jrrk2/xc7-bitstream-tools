@@ -36,6 +36,12 @@ BR2_RISCV_ABI_ILP32=y
 # fallback was read as a considered default and reasoned about as one.  Fixing
 # the headers made glibc selectable and it became the default; pinning it here
 # makes it a decision instead of a second accident pointing the same way.
+# Changing this later needs a clean output directory.  The libc is part of the
+# toolchain triplet (…-linux-gnu vs …-linux-uclibc), and buildroot's stamps
+# will say gcc is built when it is built for the *other* triplet -- the next
+# package then fails with "cannot compile" and $? = 127.  Pinning it here means
+# the triplet is fixed at the first configure rather than emerging from
+# whichever libc happened to be available.
 BR2_TOOLCHAIN_BUILDROOT_GLIBC=y
 
 BR2_GLOBAL_PATCH_DIR="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/patches"
