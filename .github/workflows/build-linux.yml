@@ -83,7 +83,7 @@ jobs:
             build-essential cmake git libeigen3-dev libboost-all-dev \
             python3 python3-venv libz3-dev bison flex libfl-dev \
             libreadline-dev gawk tcl-dev libffi-dev pkg-config zlib1g-dev \
-            device-tree-compiler gcc-riscv64-unknown-elf
+            device-tree-compiler gcc-riscv64-unknown-elf meson ninja-build
 
       - name: Restore the pinned yosys
         id: cache-yosys
