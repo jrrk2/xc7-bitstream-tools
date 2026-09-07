@@ -299,15 +299,20 @@ before it was quoted against a database nobody had recorded.
 
 ## Open items carried alongside
 
-- `main_ram` is 512 MiB and is to become 1 GiB.  It is a gateware change, so
-  it belongs with stage 6, which is the only other stage that rebuilds the
-  bitstream -- one place-and-route rather than two, on the design that is
-  already hardest to close.
+- `main_ram` 512 MiB -> 1 GiB: **an optional variant, not a step.**  It
+  perturbs the layout of the I/O blocks, which is medium risk on the design
+  that is already hardest to close, and it moves the `io.fasm` signature that
+  the contract above uses as its reproducibility check -- so that variant
+  needs its own baseline rather than sharing this one.
 
-  It also settles two things that are currently sized for 512 MiB: the
-  `STRICT_KERNEL_RWX` trade below becomes plainly wrong, and the payload
-  addresses (rootfs at `0x40800000`, 8 MiB above the kernel) are inherited
-  from a 4.6 MB kernel and should move regardless.
+  Nothing on the critical path should depend on it.  If it is attempted, do it
+  alongside stage 6 so there is one place-and-route rather than two, and treat
+  a timing regression as a reason to drop it rather than to chase it.
+
+  Note it is *not* needed to fix the two things currently sized for 512 MiB:
+  the `STRICT_KERNEL_RWX` trade below is already wrong at 512, and the payload
+  addresses (rootfs 8 MiB above the kernel, inherited from a 4.6 MB kernel)
+  can move today.
 - The `.IN` both-halves-input case on `LIOB18_X81Y81` is worked around by
   driving the PHY management pins, not fixed.  A collaborator offered to take it.
 - `create_pblock` region support was offered too; valuable for ingesting Vivado
