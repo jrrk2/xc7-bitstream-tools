@@ -490,7 +490,7 @@ vc707-litex-ddr-ethmin: fasm2netlist nextpnr
 	@echo "built $(LITEX_DDRETHMIN_OUT) -- flash with 'make vc707-litex-ddr-ethmin-flash'"
 
 # Linux, through the open flow.  See examples/vc707-litex-linux/README.md.
-vc707-litex-linux: fasm2netlist nextpnr
+vc707-litex-linux: tools fasm2netlist nextpnr
 	@scripts/pinned_yosys.sh >/dev/null
 	@test -n "$(LITEX_REMOTE_IP)" || { echo "could not work out this host's IP; pass LITEX_REMOTE_IP=..."; exit 2; }
 	@echo "network boot will look for a TFTP server at $(LITEX_REMOTE_IP)"
