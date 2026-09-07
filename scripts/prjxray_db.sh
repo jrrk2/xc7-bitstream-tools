@@ -32,6 +32,14 @@ fetch=0
 db=${1:-${PRJXRAY_DB:-}}
 rev=${2:-${PRJXRAY_DB_REV:-}}
 
+# The pin lives in one place, the Makefile, so a caller that does not pass it
+# still gets it right rather than silently checking nothing.
+if [ -z "$rev" ]; then
+    root=$(cd "$(dirname "$0")/.." && pwd)
+    rev=$(sed -n 's/^PRJXRAY_DB_REV[[:space:]]*?*=[[:space:]]*\([0-9a-f]\{40\}\).*/\1/p' \
+          "$root/Makefile" 2>/dev/null | head -1)
+fi
+
 [ -n "$db" ] || { say "no database path given"; exit 2; }
 
 if [ "$fetch" = 1 ] && [ ! -d "$db" ]; then
@@ -73,6 +81,14 @@ case "$have" in
     "$rev"*) exit 0 ;;
 esac
 
+# Tracking the tip on purpose (CI does) is not a fault, so say it in one
+# line.  The revision still gets printed either way: a result quoted against
+# an unknown database is the thing to avoid, not one quoted against a new.
+if [ "${PRJXRAY_DB_UNPINNED:-0}" = 1 ]; then
+    say "note: Project X-Ray database is ${have:0:12}, not the pin ${rev:0:12} (PRJXRAY_DB_UNPINNED=1)"
+    exit 0
+fi
+
 say "the Project X-Ray database is not the pinned revision."
 say "    pinned: ${rev:0:12}"
 say "    found:  ${have:0:12}   in $db"
@@ -81,8 +97,4 @@ say "one is not comparable with results quoted for the other -- and the"
 say "difference shows up on hardware, not in the build log.  To pin it:"
 say "    git -C $db fetch origin $rev && git -C $db checkout --detach $rev"
 say "Set PRJXRAY_DB_UNPINNED=1 to build against this one deliberately."
-if [ "${PRJXRAY_DB_UNPINNED:-0}" = 1 ]; then
-    say "PRJXRAY_DB_UNPINNED=1: continuing anyway."
-    exit 0
-fi
 exit 2

@@ -46,13 +46,51 @@ come back to when a change goes wrong.
 - Fix `LINUX_TFTP_DIR`, which hardcodes `10:e2:d5:00:00:07`; derive it from
   `--mac-address`.
 - Setup instructions covering `make tftp-serve` (`scripts/tftp_serve.py`
-  already serves per-MAC, read-only), the per-MAC directory layout, and
-  `local.mk` for `LITEX_REMOTE_IP` -- the boot address is the *server's*, which
-  need not be the machine that built the bitstream.
+  already serves per-MAC, read-only) and the per-MAC directory layout.
+- **Take the addresses out of the bitstream: BOOTP/DHCP.**  A release with a
+  compiled-in `192.168.1.106` in it is not portable to anyone else's network,
+  and `local.mk` only moves that constant rather than removing it.  Two gaps,
+  both small:
+  - The SoC never asks.  `dynamic_ip` is not passed, so `ETH_DYNAMIC_IP` is
+    off and even the existing `eth_dhcp` command is not compiled in.  Turning
+    it on replaces `--local-ip` (LiteX rejects both together).
+  - Upstream learns only half of what DHCP tells it.  `dhcp_resolve()` returns
+    `yiaddr` and nothing else, though the packet struct already carries
+    `siaddr` -- the BOOTP next-server -- and `dhcp_get_u32_option()` is right
+    there for option 66.  Return it, and have `boot.c` prefer it over the
+    compiled-in remote.  Upstreamable to LiteX.
+
+  **The hub cannot supply a boot server, so this host must answer too.**  A
+  consumer hub does DHCP but knows nothing about TFTP, which means two servers
+  answer the same DHCPDISCOVER and the board has to pick.  It currently cannot:
+  `dhcp.c:287` accepts the first offer whose transaction ID matches, without
+  asking whether the offer is of any use.
+
+  The discriminator needs no vendor class and no coordination -- *an offer
+  carrying no boot server is not for us*.  Read `siaddr`, fall back to option
+  66, and if both are empty ignore the offer and keep waiting.  The hub
+  disqualifies itself on its own merits, and on a network whose DHCP server
+  does set next-server, the same code just works.
+
+  The protocol already handles the remainder: `dhcp.c:211` puts `server_id`
+  into the DHCPREQUEST, so the hub sees a request naming another server and
+  withdraws.
+
+  Server side is `scripts/dhcp_serve.py` beside `tftp_serve.py`, both behind
+  one `make netboot-serve`.  It answers only known MACs, so it cannot disturb
+  anything else on the network, and hands out a fixed address per MAC that
+  must sit *outside* the hub's pool or the two will collide.  Port 67 needs
+  root or `CAP_NET_BIND_SERVICE` -- worth saying in the instructions rather
+  than discovering.
+
+  Together these leave no address baked into the bitstream at all: the board
+  learns who it is and where to boot from, and the boot host moves without a
+  rebuild.  This is what makes the release usable by someone who is not us --
+  and it retires the failure this plan was written in the middle of.
 - A tag-triggered workflow that publishes it.
 
-**Done when** a machine with no checkout can flash and boot from the release
-assets and the instructions alone.
+**Done when** a machine with no checkout, on a network that is not ours, can
+flash and boot from the release assets and the instructions alone.
 
 ## 2. Lock down what already works
 
@@ -172,6 +210,19 @@ there is no excuse for them to differ at all, and that is what CI asserts:
 5. **Every input pinned**: all submodules, plus `PRJXRAY_DB_REV`.  The segbits
    database decides which bits a FASM line sets, and was the only build input
    not fixed by a submodule.
+
+**The database is the deliberate exception, and it runs on two tracks.**  CI
+tracks the *tip* of prjxray-db, because noticing the day upstream changes
+which bits a FASM line sets is the point of running it there; the revision
+check reports the difference in one line and carries on.  The pin is what
+makes a *release* reproducible, and there the same check fails the build.
+
+So a CI result and a local result are comparable only when the database
+revisions agree, and CI prints which one it used.  When they disagree and the
+FASM does too, that is upstream news rather than our regression -- and worth
+knowing either way.  The first run of this check found the runner on
+`6b8695ea3456` against `5099b9e` here, so every CI result before it was
+quoted against a database nobody had recorded.
 
 **Cross-platform, until determinism lands.**  macOS builds nextpnr against
 libc++ rather than libstdc++, and today that changes placement.  Until it does

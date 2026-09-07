@@ -28,6 +28,14 @@ on:
 permissions:
   contents: write
 
+# CI deliberately tracks the tip of prjxray-db rather than the pin in the
+# Makefile: noticing the day upstream changes which bits a FASM line sets is
+# the point of running this here.  So the revision check reports the
+# difference and carries on, instead of failing the build.  The pin is what
+# makes a *release* reproducible; this is what makes drift visible.
+env:
+  PRJXRAY_DB_UNPINNED: 1
+
 jobs:
   build:
     name: Build VC707 Johnson Bitstream
