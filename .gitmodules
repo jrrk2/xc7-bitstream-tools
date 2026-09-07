@@ -49,3 +49,13 @@
 	url = https://github.com/jrrk2/linux
 	branch = rv32-sonata-litex
 	shallow = true
+[submodule "linux-deps/buildroot"]
+	path = linux-deps/buildroot
+	url = https://github.com/jrrk2/buildroot
+	branch = sonata
+	shallow = true
+[submodule "linux-deps/linux-on-litex-vexriscv"]
+	path = linux-deps/linux-on-litex-vexriscv
+	url = https://github.com/jrrk2/linux-on-litex-vexriscv
+	branch = sonata
+	shallow = true

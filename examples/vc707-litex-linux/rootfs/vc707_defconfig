@@ -1,0 +1,47 @@
+# Buildroot config for the open-flow VC707 SoC.
+#
+# Derived from linux-on-litex-vexriscv's litex_vexriscv_defconfig, which
+# already targets this CPU exactly: rv32ima with compressed instructions
+# explicitly off, ILP32, and userspace built against 6.9 kernel headers.
+# That last one is the point of rebuilding: the f4pga rootfs was built for a
+# 5.x kernel and dies on 6.9 with "poll: Function not implemented", because
+# riscv has only ever had ppoll and whatever supplied poll() is long gone.
+#
+# What is dropped from the reference is everything that builds a *different*
+# boot path: this SoC has its own kernel build, uses the 6 KB emulator rather
+# than OpenSBI, and netboots a cpio over TFTP rather than writing an SD card.
+
+# Target: rv32ima/ilp32, no compressed -- VexRiscv has no C extension.
+BR2_riscv=y
+BR2_RISCV_32=y
+BR2_riscv_custom=y
+BR2_RISCV_ISA_CUSTOM_RVM=y
+BR2_RISCV_ISA_CUSTOM_RVA=y
+BR2_RISCV_ISA_CUSTOM_RVC=n
+BR2_RISCV_ISA_RVM=y
+BR2_RISCV_ISA_RVA=y
+BR2_RISCV_ISA_RVC=n
+BR2_RISCV_ABI_ILP32=y
+
+BR2_GLOBAL_PATCH_DIR="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/patches"
+BR2_GCC_VERSION_13_X=y
+
+# Userspace against 6.9 headers -- this is what fixes the ENOSYS.
+#
+# The reference defconfig says BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_9,
+# which no longer exists: this buildroot offers only LTS versions (5.10 ...
+# 6.19) and would otherwise default to 6.19.6 -- newer than the kernel we
+# run, which is the wrong direction.  Headers must not exceed the kernel, so
+# pin the exact version instead.
+BR2_KERNEL_HEADERS_VERSION=y
+BR2_DEFAULT_KERNEL_VERSION="6.9"
+
+
+# A getty on the console the kernel gives us (liteuart0).
+BR2_TARGET_GENERIC_GETTY=y
+BR2_TARGET_GENERIC_GETTY_PORT="console"
+
+# The netboot payload is a cpio loaded at 0x40800000; nothing else is wanted.
+BR2_TARGET_ROOTFS_CPIO=y
+
+BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/board/litex_vexriscv/rootfs_overlay"
