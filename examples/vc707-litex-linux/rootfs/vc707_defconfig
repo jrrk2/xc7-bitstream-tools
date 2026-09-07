@@ -37,13 +37,17 @@ BR2_GCC_VERSION_13_X=y
 
 # Userspace against 6.9 headers -- this is what fixes the ENOSYS.
 #
-# The reference defconfig says BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_9,
-# which no longer exists: this buildroot offers only LTS versions (5.10 ...
-# 6.19) and would otherwise default to 6.19.6 -- newer than the kernel we
-# run, which is the wrong direction.  Headers must not exceed the kernel, so
-# pin the exact version instead.
+# Two symbols, and both are required.  BR2_KERNEL_HEADERS_VERSION picks which
+# tarball to fetch; BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_9 declares which
+# series to assume.  Without the second, buildroot assumes 2.6 and
+# check-kernel-headers.sh fails the staging install with "expected 2.6.x, got
+# 6.9.x" -- after downloading 137 MB and building most of a toolchain.
+#
+# The default, left alone, is 6.19.6: newer than the kernel this userspace
+# runs on, which is the wrong direction.  Headers must not exceed the kernel.
 BR2_KERNEL_HEADERS_VERSION=y
 BR2_DEFAULT_KERNEL_VERSION="6.9"
+BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_9=y
 
 
 # A getty on the console the kernel gives us (liteuart0).
