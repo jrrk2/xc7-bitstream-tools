@@ -23,14 +23,20 @@ BR2_RISCV_ISA_RVA=y
 BR2_RISCV_ISA_RVC=n
 BR2_RISCV_ABI_ILP32=y
 
-# libc: uclibc-ng.  This was not chosen -- the line was omitted and buildroot
-# defaulted -- but it is kept on review, because it is what the generic
-# litex_vexriscv_defconfig uses, and that is the best-tested userspace for a
-# LiteX/VexRiscv SoC with these drivers.
+# libc: glibc, chosen rather than defaulted.
 #
-# sonata overrides to musl ("saves ~2MB in rootfs, critical for 8MB RAM").
-# That explains why sonata differs; it is not an argument for this default.
-# The libc is not what fixes the ENOSYS in any case -- the headers are.
+# The goal for this board is to run nextpnr on it (see the roadmap's stage 6),
+# and that is a large C++ program linking libstdc++.  glibc is the
+# best-supported libc for that, and the size argument against it -- sonata's
+# "saves ~2MB in rootfs, critical for 8MB RAM" -- is irrelevant at 512 MiB.
+#
+# Worth recording how this was found, because it was nearly missed.  With the
+# headers series misconfigured, BR2_TOOLCHAIN_HEADERS_AT_LEAST resolved to 2.6,
+# glibc was therefore unavailable, and buildroot fell back to uclibc-ng.  That
+# fallback was read as a considered default and reasoned about as one.  Fixing
+# the headers made glibc selectable and it became the default; pinning it here
+# makes it a decision instead of a second accident pointing the same way.
+BR2_TOOLCHAIN_BUILDROOT_GLIBC=y
 
 BR2_GLOBAL_PATCH_DIR="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/patches"
 BR2_GCC_VERSION_13_X=y
