@@ -76,4 +76,16 @@ BR2_PACKAGE_BUSYBOX_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/.
 # is for throughput once they are.
 BR2_PACKAGE_IPERF3=y
 
+# OpenSBI, the M-mode firmware for the VexRiscv-SMP SoC.  It replaces the 6 KB
+# emulator, which existed only because the plain VexRiscv SoC had no CLINT at
+# 0xF0010000 and no PLIC at 0xf0c00000 -- exactly what this platform expects,
+# and exactly what the SMP core provides.  litex-hub's fork, as the reference
+# config uses.
+BR2_TARGET_OPENSBI=y
+BR2_TARGET_OPENSBI_CUSTOM_GIT=y
+BR2_TARGET_OPENSBI_CUSTOM_REPO_URL="https://github.com/litex-hub/opensbi.git"
+BR2_TARGET_OPENSBI_CUSTOM_REPO_VERSION="1.3.1-linux-on-litex-vexriscv"
+BR2_TARGET_OPENSBI_PLAT="litex/vexriscv"
+BR2_TARGET_OPENSBI_INSTALL_DYNAMIC_IMG=n
+
 BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/board/litex_vexriscv/rootfs_overlay"
