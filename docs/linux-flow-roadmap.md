@@ -33,24 +33,27 @@ stage, and it needs a definition before it can gate anything.
 
 ---
 
-## 1. Release the image that works today
+## 1. Keep a copy of what booted
 
-**Why first.**  It preserves something no command can regenerate, and it is the
-cheapest stage.  Everything after this is change; this is the fixed point to
-come back to when a change goes wrong.
+**Why first.**  Not a release -- somewhere to come back to when a change
+breaks something.  Most of it cannot be rebuilt, so if it is lost it is lost.
 
-- `make release` stages, with `SHA256SUMS`: `litex_linux_vc707.bit`, `Image`,
-  `rootfs.cpio`, `rv32.dtb`, `emulator.bin`, `boot.json`.
-- Capture the boot transcript at the same moment, from `Liftoff!` to the
-  buildroot login, and ship it with the release as what these artifacts do.
-- Fix `LINUX_TFTP_DIR`, which hardcodes `10:e2:d5:00:00:07`; derive it from
-  `--mac-address`.
-- Setup instructions covering `make tftp-serve` (`scripts/tftp_serve.py`
-  already serves per-MAC, read-only) and the per-MAC directory layout.
-- **Take the addresses out of the bitstream: BOOTP/DHCP.**  A release with a
-  compiled-in `192.168.1.106` in it is not portable to anyone else's network,
-  and `local.mk` only moves that constant rather than removing it.  Two gaps,
-  both small:
+**Done**, at `~/xc7-vc707-known-good/2026-09-06-linux/`: the bitstream, the
+four payload files, `SHA256SUMS`, and a `PROVENANCE` note recording the
+submodule and database revisions it was built against, that the kernel and
+rootfs are f4pga artifacts no target here can rebuild, that the emulator and
+the dtb encode this bitstream's CSR addresses so the five files move
+together, and how to flash and serve it again.
+
+Kept outside the checkout: 28 MB of binaries do not belong in git.
+
+## 1a. A release someone else can use -- later, and separately
+
+Distinct from the copy above, and not urgent.  What it needs beyond the
+snapshot is portability, because the board's addresses are compiled in:
+
+- **BOOTP/DHCP, so no address is baked into the bitstream.**  Two gaps, both
+  small:
   - The SoC never asks.  `dynamic_ip` is not passed, so `ETH_DYNAMIC_IP` is
     off and even the existing `eth_dhcp` command is not compiled in.  Turning
     it on replaces `--local-ip` (LiteX rejects both together).
@@ -61,8 +64,8 @@ come back to when a change goes wrong.
     compiled-in remote.  Upstreamable to LiteX.
 
   **The hub cannot supply a boot server, so this host must answer too.**  A
-  consumer hub does DHCP but knows nothing about TFTP, which means two servers
-  answer the same DHCPDISCOVER and the board has to pick.  It currently cannot:
+  consumer hub does DHCP but knows nothing about TFTP, so two servers answer
+  the same DHCPDISCOVER and the board has to pick.  It currently cannot:
   `dhcp.c:287` accepts the first offer whose transaction ID matches, without
   asking whether the offer is of any use.
 
@@ -70,27 +73,21 @@ come back to when a change goes wrong.
   carrying no boot server is not for us*.  Read `siaddr`, fall back to option
   66, and if both are empty ignore the offer and keep waiting.  The hub
   disqualifies itself on its own merits, and on a network whose DHCP server
-  does set next-server, the same code just works.
-
-  The protocol already handles the remainder: `dhcp.c:211` puts `server_id`
-  into the DHCPREQUEST, so the hub sees a request naming another server and
-  withdraws.
+  does set next-server, the same code just works.  The protocol handles the
+  rest: `dhcp.c:211` puts `server_id` into the DHCPREQUEST, so the hub sees a
+  request naming another server and withdraws.
 
   Server side is `scripts/dhcp_serve.py` beside `tftp_serve.py`, both behind
-  one `make netboot-serve`.  It answers only known MACs, so it cannot disturb
-  anything else on the network, and hands out a fixed address per MAC that
-  must sit *outside* the hub's pool or the two will collide.  Port 67 needs
-  root or `CAP_NET_BIND_SERVICE` -- worth saying in the instructions rather
-  than discovering.
+  one `make netboot-serve`.  It answers only known MACs, and hands out a fixed
+  address per MAC that must sit *outside* the hub's pool.  Port 67 needs root
+  or `CAP_NET_BIND_SERVICE`.
 
-  Together these leave no address baked into the bitstream at all: the board
-  learns who it is and where to boot from, and the boot host moves without a
-  rebuild.  This is what makes the release usable by someone who is not us --
-  and it retires the failure this plan was written in the middle of.
+- `LINUX_TFTP_DIR` hardcodes `10:e2:d5:00:00:07`; derive it from
+  `--mac-address`.
 - A tag-triggered workflow that publishes it.
 
 **Done when** a machine with no checkout, on a network that is not ours, can
-flash and boot from the release assets and the instructions alone.
+flash and boot from the release assets alone.
 
 ## 2. Lock down what already works
 
@@ -138,6 +135,18 @@ now there is a release to fall back to and a test to detect breakage.
   | `linux-xip` | `af93851` | `rv32-sonata-litex` (6.9.0) |
   | `litesdcard` | `80a3004` | 2025.12 |
   | `linux-on-litex-vexriscv` | `9817acd` | `sonata` |
+
+  All four pins are reachable on their remotes, so nothing here is local-only.
+  Two things about *how* they are added, both cheaper decided now:
+
+  - **URLs must be `https://`.**  sonata-linux records three of the four as
+    `git@github.com:` , which works for one account and fails for CI and for
+    anyone else cloning.  Every submodule in this repository is already
+    `https://`; these follow that, and pushing stays a local rewrite rule.
+  - **1.6 GB of that is `linux-xip`.**  Hanging it off every clone, and every
+    CI job doing `submodules: recursive`, is a real cost.  Prefer a
+    `--filter=blob:none` fetch, or keep the kernel out of the submodule set
+    and fetch it only in the image-build target.
 
 - `make linux-images` builds `Image` and `rootfs.cpio` from the pinned
   buildroot and becomes the default for `LINUX_IMAGES`.
