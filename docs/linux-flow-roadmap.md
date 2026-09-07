@@ -17,6 +17,13 @@ Buildroot 2020.02).  `LINUX_IMAGES` has no default and names a directory
 outside the tree; nothing here can rebuild them.  Releasing them is
 preservation, not packaging, which is why it leads.
 
+*Being fixed.*  f4pga is a VPR flow -- a different place-and-route tool
+altogether -- so there was never a shared lineage with this one; two prebuilt
+binaries were the whole of the dependency.  With `linux-deps/linux` and
+`linux-deps/buildroot` pinned here, both are built from this checkout and the
+f4pga reference is retired.  It survives only in the known-good snapshot's
+PROVENANCE, as a record of where the first booting image came from.
+
 **Ethernet under Linux needs no gateware change.**  The SoC already exposes
 everything `litex_liteeth` binds to: the `ethmac` CSR bank at `0xf0001800` and
 its buffers at `0x80000000` (rx) and `0x80001000` (tx), 4096 bytes each.  The
