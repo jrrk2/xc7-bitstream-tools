@@ -245,6 +245,29 @@ work, not just integration.
 
 **Done when** a filesystem mounts off the card at 4-bit width.
 
+**But mounting is not the goal.**  The point of mass storage here is
+self-hosting -- running nextpnr on the board to bootstrap its own bitstream --
+and that changes what stage 6 has to deliver:
+
+- **Root on SD, not an initramfs.**  Everything today unpacks into RAM, so the
+  rootfs competes with the working set.  A toolchain cannot live there.
+- **Swap on SD.**  A 100 MHz rv32 doing place-and-route will need it, and it
+  is the cheapest way to survive a peak that exceeds DRAM.
+- The 1 GiB variant is optional for the flow but probably not for this: it
+  stays optional, and self-hosting is the argument for attempting it.
+
+Sizing, so the ambition is checked against arithmetic rather than hope.
+nextpnr needs 142 MB before it sees a design -- 74.9 MB of chipdb for
+xc7vx485t plus a 67.3 MB binary -- against 512 MiB now.  Peak RSS during
+place-and-route of the Linux SoC is the figure that decides feasibility and
+has never been measured; record it (`/usr/bin/time -v`) on the next run.
+
+Worth separating two ambitions that sound alike: *running* a prebuilt nextpnr
+on the board is a memory question, and plausible at 1 GiB with swap.
+*Building* nextpnr there is a different order of problem -- C++ template
+instantiation peaks in the gigabytes per translation unit, on a core roughly
+three orders of magnitude slower than the host.
+
 ---
 
 ## The reproducibility contract
