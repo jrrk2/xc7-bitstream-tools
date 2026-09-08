@@ -49,6 +49,12 @@ DESIGNS=(
   # distributed RAM and carry chains throughout.  It was blocked until the tile
   # model learned to cut a block RAM at its boundary; it proves now, with the
   # yosys this repository pins.
+  # The minimal SD test: SDPHY and SDCore driven by a hardcoded FSM, no CPU
+  # and no bus.  It exists to be small enough that a difference list can be
+  # read line by line, and it is the first design here whose bitstream is
+  # known to work against a real card through BOTH flows -- Vivado's and this
+  # one -- so a difference it reports is a modelling gap, not a broken build.
+  "vc707-sdtest|examples/vc707-sdtest/build-openflow|vc707_sdtest.v|vc707_sdtest|vc707_sdtest.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|"
   "vc707-litex|examples/vc707-litex/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|"
 )
 

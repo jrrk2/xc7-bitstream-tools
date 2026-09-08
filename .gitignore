@@ -90,3 +90,6 @@ examples/vc707-litex/gateware/*.fasm
 yosys-install/
 local.mk
 eigen-kit.tar.gz
+
+# Generated build trees for the example designs
+examples/*/build-*/
