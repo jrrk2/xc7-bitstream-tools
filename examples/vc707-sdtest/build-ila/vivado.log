@@ -1,0 +1,1381 @@
+#-----------------------------------------------------------
+# Vivado v2020.1.1 (64-bit)
+# SW Build 2960000 on Wed Aug  5 22:57:21 MDT 2020
+# IP Build 2956692 on Thu Aug  6 01:41:30 MDT 2020
+# Start of session at: Tue Sep  8 13:55:35 2026
+# Process ID: 1877580
+# Current directory: /home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila
+# Command line: vivado -mode batch -source vc707_sdtest.tcl
+# Log file: /home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vivado.log
+# Journal file: /home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vivado.jou
+#-----------------------------------------------------------
+source vc707_sdtest.tcl
+# create_project -force -name vc707_sdtest -part xc7vx485tffg1761-2
+# set_msg_config -id {Common 17-55} -new_severity {Warning}
+# add_files {/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/ip/sdtest_ila.srcs/sources_1/ip/sdtest_ila/sdtest_ila.xci}
+INFO: [IP_Flow 19-234] Refreshing IP repositories
+INFO: [IP_Flow 19-1704] No user IP repositories specified
+INFO: [IP_Flow 19-2313] Loaded Vivado IP repository '/NFS/apps/Xilinx/Vivado/2020.1/data/ip'.
+WARNING: [IP_Flow 19-3664] IP 'sdtest_ila' generated file not found '/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/ip/sdtest_ila.srcs/sources_1/ip/sdtest_ila/sdtest_ila.dcp'. Please regenerate to continue.
+WARNING: [IP_Flow 19-3664] IP 'sdtest_ila' generated file not found '/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/ip/sdtest_ila.srcs/sources_1/ip/sdtest_ila/sdtest_ila_stub.v'. Please regenerate to continue.
+WARNING: [IP_Flow 19-3664] IP 'sdtest_ila' generated file not found '/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/ip/sdtest_ila.srcs/sources_1/ip/sdtest_ila/sdtest_ila_stub.vhdl'. Please regenerate to continue.
+WARNING: [IP_Flow 19-3664] IP 'sdtest_ila' generated file not found '/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/ip/sdtest_ila.srcs/sources_1/ip/sdtest_ila/sdtest_ila_sim_netlist.v'. Please regenerate to continue.
+WARNING: [IP_Flow 19-3664] IP 'sdtest_ila' generated file not found '/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/ip/sdtest_ila.srcs/sources_1/ip/sdtest_ila/sdtest_ila_sim_netlist.vhdl'. Please regenerate to continue.
+# if {[string equal [file extension {/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/ip/sdtest_ila.srcs/sources_1/ip/sdtest_ila/sdtest_ila.xci}] ".h"]} {
+# set_property is_global_include true [get_files {/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/ip/sdtest_ila.srcs/sources_1/ip/sdtest_ila/sdtest_ila.xci}]
+# }
+# read_verilog {/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v}
+# read_xdc vc707_sdtest.xdc
+# set_property PROCESSING_ORDER EARLY [get_files vc707_sdtest.xdc]
+# synth_design -directive default -top vc707_sdtest -part xc7vx485tffg1761-2
+Command: synth_design -directive default -top vc707_sdtest -part xc7vx485tffg1761-2
+Starting synth_design
+Attempting to get a license for feature 'Synthesis' and/or device 'xc7vx485t'
+INFO: [Common 17-349] Got license for feature 'Synthesis' and/or device 'xc7vx485t'
+INFO: [Common 17-1540] The version limit for your license is '2021.03' and has expired for new software. A version limit expiration means that, although you may be able to continue to use the current version of tools or IP with this license, you will not be eligible for any updates or new releases.
+INFO: [Device 21-403] Loading part xc7vx485tffg1761-2
+INFO: [Synth 8-7079] Multithreading enabled for synth_design using a maximum of 4 processes.
+INFO: [Synth 8-7078] Launching helper process for spawning children vivado processes
+INFO: [Synth 8-7075] Helper process launched with PID 1879564
+---------------------------------------------------------------------------------
+Starting RTL Elaboration : Time (s): cpu = 00:00:03 ; elapsed = 00:00:04 . Memory (MB): peak = 2295.285 ; gain = 138.719 ; free physical = 1436 ; free virtual = 175439
+---------------------------------------------------------------------------------
+INFO: [Synth 8-6157] synthesizing module 'vc707_sdtest' [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:23]
+INFO: [Synth 8-155] case statement is not full and has no default [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:877]
+INFO: [Synth 8-155] case statement is not full and has no default [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:1503]
+INFO: [Synth 8-155] case statement is not full and has no default [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:1729]
+INFO: [Synth 8-155] case statement is not full and has no default [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:1763]
+INFO: [Synth 8-155] case statement is not full and has no default [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:1912]
+INFO: [Synth 8-155] case statement is not full and has no default [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:1922]
+INFO: [Synth 8-155] case statement is not full and has no default [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:2019]
+INFO: [Synth 8-155] case statement is not full and has no default [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:2053]
+INFO: [Synth 8-155] case statement is not full and has no default [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:2284]
+INFO: [Synth 8-155] case statement is not full and has no default [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:2361]
+INFO: [Synth 8-155] case statement is not full and has no default [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:2395]
+INFO: [Synth 8-155] case statement is not full and has no default [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:2499]
+INFO: [Synth 8-155] case statement is not full and has no default [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:3600]
+INFO: [Synth 8-6157] synthesizing module 'IBUFDS' [/NFS/apps/Xilinx/Vivado/2020.1/scripts/rt/data/unisim_comp.v:32992]
+	Parameter CAPACITANCE bound to: DONT_CARE - type: string 
+	Parameter DIFF_TERM bound to: FALSE - type: string 
+	Parameter DQS_BIAS bound to: FALSE - type: string 
+	Parameter IBUF_DELAY_VALUE bound to: 0 - type: string 
+	Parameter IBUF_LOW_PWR bound to: TRUE - type: string 
+	Parameter IFD_DELAY_VALUE bound to: AUTO - type: string 
+	Parameter IOSTANDARD bound to: DEFAULT - type: string 
+INFO: [Synth 8-6155] done synthesizing module 'IBUFDS' (1#1) [/NFS/apps/Xilinx/Vivado/2020.1/scripts/rt/data/unisim_comp.v:32992]
+INFO: [Synth 8-6157] synthesizing module 'MMCME2_ADV' [/NFS/apps/Xilinx/Vivado/2020.1/scripts/rt/data/unisim_comp.v:39994]
+	Parameter BANDWIDTH bound to: OPTIMIZED - type: string 
+	Parameter CLKFBOUT_MULT_F bound to: 5.000000 - type: double 
+	Parameter CLKFBOUT_PHASE bound to: 0.000000 - type: double 
+	Parameter CLKFBOUT_USE_FINE_PS bound to: FALSE - type: string 
+	Parameter CLKIN1_PERIOD bound to: 5.000000 - type: double 
+	Parameter CLKIN2_PERIOD bound to: 0.000000 - type: double 
+	Parameter CLKOUT0_DIVIDE_F bound to: 20.000000 - type: double 
+	Parameter CLKOUT0_DUTY_CYCLE bound to: 0.500000 - type: double 
+	Parameter CLKOUT0_PHASE bound to: 0.000000 - type: double 
+	Parameter CLKOUT0_USE_FINE_PS bound to: FALSE - type: string 
+	Parameter CLKOUT1_DIVIDE bound to: 1 - type: integer 
+	Parameter CLKOUT1_DUTY_CYCLE bound to: 0.500000 - type: double 
+	Parameter CLKOUT1_PHASE bound to: 0.000000 - type: double 
+	Parameter CLKOUT1_USE_FINE_PS bound to: FALSE - type: string 
+	Parameter CLKOUT2_DIVIDE bound to: 1 - type: integer 
+	Parameter CLKOUT2_DUTY_CYCLE bound to: 0.500000 - type: double 
+	Parameter CLKOUT2_PHASE bound to: 0.000000 - type: double 
+	Parameter CLKOUT2_USE_FINE_PS bound to: FALSE - type: string 
+	Parameter CLKOUT3_DIVIDE bound to: 1 - type: integer 
+	Parameter CLKOUT3_DUTY_CYCLE bound to: 0.500000 - type: double 
+	Parameter CLKOUT3_PHASE bound to: 0.000000 - type: double 
+	Parameter CLKOUT3_USE_FINE_PS bound to: FALSE - type: string 
+	Parameter CLKOUT4_CASCADE bound to: FALSE - type: string 
+	Parameter CLKOUT4_DIVIDE bound to: 1 - type: integer 
+	Parameter CLKOUT4_DUTY_CYCLE bound to: 0.500000 - type: double 
+	Parameter CLKOUT4_PHASE bound to: 0.000000 - type: double 
+	Parameter CLKOUT4_USE_FINE_PS bound to: FALSE - type: string 
+	Parameter CLKOUT5_DIVIDE bound to: 1 - type: integer 
+	Parameter CLKOUT5_DUTY_CYCLE bound to: 0.500000 - type: double 
+	Parameter CLKOUT5_PHASE bound to: 0.000000 - type: double 
+	Parameter CLKOUT5_USE_FINE_PS bound to: FALSE - type: string 
+	Parameter CLKOUT6_DIVIDE bound to: 1 - type: integer 
+	Parameter CLKOUT6_DUTY_CYCLE bound to: 0.500000 - type: double 
+	Parameter CLKOUT6_PHASE bound to: 0.000000 - type: double 
+	Parameter CLKOUT6_USE_FINE_PS bound to: FALSE - type: string 
+	Parameter COMPENSATION bound to: ZHOLD - type: string 
+	Parameter DIVCLK_DIVIDE bound to: 1 - type: integer 
+	Parameter IS_CLKINSEL_INVERTED bound to: 1'b0 
+	Parameter IS_PSEN_INVERTED bound to: 1'b0 
+	Parameter IS_PSINCDEC_INVERTED bound to: 1'b0 
+	Parameter IS_PWRDWN_INVERTED bound to: 1'b0 
+	Parameter IS_RST_INVERTED bound to: 1'b0 
+	Parameter REF_JITTER1 bound to: 0.010000 - type: double 
+	Parameter REF_JITTER2 bound to: 0.010000 - type: double 
+	Parameter SS_EN bound to: FALSE - type: string 
+	Parameter SS_MODE bound to: CENTER_HIGH - type: string 
+	Parameter SS_MOD_PERIOD bound to: 10000 - type: integer 
+	Parameter STARTUP_WAIT bound to: FALSE - type: string 
+INFO: [Synth 8-6155] done synthesizing module 'MMCME2_ADV' (2#1) [/NFS/apps/Xilinx/Vivado/2020.1/scripts/rt/data/unisim_comp.v:39994]
+WARNING: [Synth 8-7071] port 'CLKFBOUTB' of module 'MMCME2_ADV' is unconnected for instance 'MMCME2_ADV' [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5228]
+WARNING: [Synth 8-7071] port 'CLKFBSTOPPED' of module 'MMCME2_ADV' is unconnected for instance 'MMCME2_ADV' [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5228]
+WARNING: [Synth 8-7071] port 'CLKINSTOPPED' of module 'MMCME2_ADV' is unconnected for instance 'MMCME2_ADV' [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5228]
+WARNING: [Synth 8-7071] port 'CLKOUT0B' of module 'MMCME2_ADV' is unconnected for instance 'MMCME2_ADV' [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5228]
+WARNING: [Synth 8-7071] port 'CLKOUT1' of module 'MMCME2_ADV' is unconnected for instance 'MMCME2_ADV' [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5228]
+WARNING: [Synth 8-7071] port 'CLKOUT1B' of module 'MMCME2_ADV' is unconnected for instance 'MMCME2_ADV' [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5228]
+WARNING: [Synth 8-7071] port 'CLKOUT2' of module 'MMCME2_ADV' is unconnected for instance 'MMCME2_ADV' [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5228]
+WARNING: [Synth 8-7071] port 'CLKOUT2B' of module 'MMCME2_ADV' is unconnected for instance 'MMCME2_ADV' [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5228]
+WARNING: [Synth 8-7071] port 'CLKOUT3' of module 'MMCME2_ADV' is unconnected for instance 'MMCME2_ADV' [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5228]
+WARNING: [Synth 8-7071] port 'CLKOUT3B' of module 'MMCME2_ADV' is unconnected for instance 'MMCME2_ADV' [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5228]
+WARNING: [Synth 8-7071] port 'CLKOUT4' of module 'MMCME2_ADV' is unconnected for instance 'MMCME2_ADV' [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5228]
+WARNING: [Synth 8-7071] port 'CLKOUT5' of module 'MMCME2_ADV' is unconnected for instance 'MMCME2_ADV' [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5228]
+WARNING: [Synth 8-7071] port 'CLKOUT6' of module 'MMCME2_ADV' is unconnected for instance 'MMCME2_ADV' [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5228]
+WARNING: [Synth 8-7071] port 'DO' of module 'MMCME2_ADV' is unconnected for instance 'MMCME2_ADV' [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5228]
+WARNING: [Synth 8-7071] port 'DRDY' of module 'MMCME2_ADV' is unconnected for instance 'MMCME2_ADV' [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5228]
+WARNING: [Synth 8-7071] port 'PSDONE' of module 'MMCME2_ADV' is unconnected for instance 'MMCME2_ADV' [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5228]
+WARNING: [Synth 8-7071] port 'CLKIN2' of module 'MMCME2_ADV' is unconnected for instance 'MMCME2_ADV' [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5228]
+WARNING: [Synth 8-7023] instance 'MMCME2_ADV' of module 'MMCME2_ADV' has 33 connections declared, but only 16 given [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5228]
+INFO: [Synth 8-6157] synthesizing module 'BUFG' [/NFS/apps/Xilinx/Vivado/2020.1/scripts/rt/data/unisim_comp.v:1083]
+INFO: [Synth 8-6155] done synthesizing module 'BUFG' (3#1) [/NFS/apps/Xilinx/Vivado/2020.1/scripts/rt/data/unisim_comp.v:1083]
+WARNING: [Synth 8-4446] all outputs are unconnected for this instance and logic may be removed [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5279]
+INFO: [Synth 8-6157] synthesizing module 'sdtest_ila' [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/.Xil/Vivado-1877580-jonathan-nuc10i7fnk/realtime/sdtest_ila_stub.v:6]
+INFO: [Synth 8-6155] done synthesizing module 'sdtest_ila' (4#1) [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/.Xil/Vivado-1877580-jonathan-nuc10i7fnk/realtime/sdtest_ila_stub.v:6]
+INFO: [Synth 8-6157] synthesizing module 'FDPE' [/NFS/apps/Xilinx/Vivado/2020.1/scripts/rt/data/unisim_comp.v:13664]
+	Parameter INIT bound to: 1'b1 
+	Parameter IS_C_INVERTED bound to: 1'b0 
+	Parameter IS_D_INVERTED bound to: 1'b0 
+	Parameter IS_PRE_INVERTED bound to: 1'b0 
+INFO: [Synth 8-6155] done synthesizing module 'FDPE' (5#1) [/NFS/apps/Xilinx/Vivado/2020.1/scripts/rt/data/unisim_comp.v:13664]
+INFO: [Synth 8-6157] synthesizing module 'ODDR' [/NFS/apps/Xilinx/Vivado/2020.1/scripts/rt/data/unisim_comp.v:49784]
+	Parameter DDR_CLK_EDGE bound to: SAME_EDGE - type: string 
+	Parameter INIT bound to: 1'b0 
+	Parameter IS_C_INVERTED bound to: 1'b0 
+	Parameter IS_D1_INVERTED bound to: 1'b0 
+	Parameter IS_D2_INVERTED bound to: 1'b0 
+	Parameter SRTYPE bound to: SYNC - type: string 
+INFO: [Synth 8-6155] done synthesizing module 'ODDR' (6#1) [/NFS/apps/Xilinx/Vivado/2020.1/scripts/rt/data/unisim_comp.v:49784]
+INFO: [Synth 8-6157] synthesizing module 'IOBUF' [/NFS/apps/Xilinx/Vivado/2020.1/scripts/rt/data/unisim_comp.v:36238]
+	Parameter DRIVE bound to: 12 - type: integer 
+	Parameter IBUF_LOW_PWR bound to: TRUE - type: string 
+	Parameter IOSTANDARD bound to: DEFAULT - type: string 
+	Parameter SLEW bound to: SLOW - type: string 
+INFO: [Synth 8-6155] done synthesizing module 'IOBUF' (7#1) [/NFS/apps/Xilinx/Vivado/2020.1/scripts/rt/data/unisim_comp.v:36238]
+INFO: [Synth 8-6157] synthesizing module 'IDDR' [/NFS/apps/Xilinx/Vivado/2020.1/scripts/rt/data/unisim_comp.v:34934]
+	Parameter DDR_CLK_EDGE bound to: SAME_EDGE - type: string 
+	Parameter INIT_Q1 bound to: 1'b0 
+	Parameter INIT_Q2 bound to: 1'b0 
+	Parameter IS_C_INVERTED bound to: 1'b0 
+	Parameter IS_D_INVERTED bound to: 1'b0 
+	Parameter SRTYPE bound to: SYNC - type: string 
+INFO: [Synth 8-6155] done synthesizing module 'IDDR' (8#1) [/NFS/apps/Xilinx/Vivado/2020.1/scripts/rt/data/unisim_comp.v:34934]
+INFO: [Synth 8-6071] Mark debug on the nets applies keep_hierarchy on instance 'ODDR'. This will prevent further optimization [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5337]
+INFO: [Synth 8-6071] Mark debug on the nets applies keep_hierarchy on instance 'sdtest_ila'. This will prevent further optimization [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5279]
+INFO: [Synth 8-6071] Mark debug on the nets applies keep_hierarchy on instance 'IDDR'. This will prevent further optimization [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5473]
+INFO: [Synth 8-6071] Mark debug on the nets applies keep_hierarchy on instance 'ODDR_1'. This will prevent further optimization [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:5433]
+INFO: [Synth 8-6155] done synthesizing module 'vc707_sdtest' (9#1) [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:23]
+---------------------------------------------------------------------------------
+Finished RTL Elaboration : Time (s): cpu = 00:00:04 ; elapsed = 00:00:06 . Memory (MB): peak = 2372.191 ; gain = 215.625 ; free physical = 1380 ; free virtual = 175384
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Handling Custom Attributes
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Handling Custom Attributes : Time (s): cpu = 00:00:05 ; elapsed = 00:00:06 . Memory (MB): peak = 2390.004 ; gain = 233.438 ; free physical = 1396 ; free virtual = 175401
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished RTL Optimization Phase 1 : Time (s): cpu = 00:00:05 ; elapsed = 00:00:06 . Memory (MB): peak = 2390.004 ; gain = 233.438 ; free physical = 1396 ; free virtual = 175401
+---------------------------------------------------------------------------------
+Netlist sorting complete. Time (s): cpu = 00:00:00.02 ; elapsed = 00:00:00.02 . Memory (MB): peak = 2399.910 ; gain = 0.000 ; free physical = 1394 ; free virtual = 175398
+INFO: [Netlist 29-17] Analyzing 23 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds
+INFO: [Project 1-570] Preparing netlist for logic optimization
+
+Processing XDC Constraints
+Initializing timing engine
+Parsing XDC File [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/ip/sdtest_ila.srcs/sources_1/ip/sdtest_ila/sdtest_ila/sdtest_ila_in_context.xdc] for cell 'sdtest_ila'
+Finished Parsing XDC File [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/ip/sdtest_ila.srcs/sources_1/ip/sdtest_ila/sdtest_ila/sdtest_ila_in_context.xdc] for cell 'sdtest_ila'
+Parsing XDC File [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.xdc]
+Finished Parsing XDC File [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.xdc]
+INFO: [Project 1-236] Implementation specific constraints were found while reading constraint file [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.xdc]. These constraints will be ignored for synthesis but will be used in implementation. Impacted constraints are listed in the file [.Xil/vc707_sdtest_propImpl.xdc].
+Resolution: To avoid this warning, move constraints listed in [.Xil/vc707_sdtest_propImpl.xdc] to another XDC file and exclude this new file from synthesis with the used_in_synthesis property (File Properties dialog in GUI) and re-run elaboration/synthesis.
+INFO: [Timing 38-2] Deriving generated clocks
+Completed Processing XDC Constraints
+
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 2555.688 ; gain = 0.000 ; free physical = 1331 ; free virtual = 175336
+INFO: [Project 1-111] Unisim Transformation Summary:
+  A total of 5 instances were transformed.
+  IOBUF => IOBUF (IBUF, OBUFT): 5 instances
+
+Constraint Validation Runtime : Time (s): cpu = 00:00:00.01 ; elapsed = 00:00:00.01 . Memory (MB): peak = 2555.688 ; gain = 0.000 ; free physical = 1331 ; free virtual = 175336
+---------------------------------------------------------------------------------
+Finished Constraint Validation : Time (s): cpu = 00:00:11 ; elapsed = 00:00:14 . Memory (MB): peak = 2555.688 ; gain = 399.121 ; free physical = 1959 ; free virtual = 175963
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Loading Part and Timing Information
+---------------------------------------------------------------------------------
+Loading part: xc7vx485tffg1761-2
+---------------------------------------------------------------------------------
+Finished Loading Part and Timing Information : Time (s): cpu = 00:00:11 ; elapsed = 00:00:14 . Memory (MB): peak = 2555.688 ; gain = 399.121 ; free physical = 1959 ; free virtual = 175963
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Applying 'set_property' XDC Constraints
+---------------------------------------------------------------------------------
+Applied set_property DONT_TOUCH = true for sdtest_ila. (constraint file  auto generated constraint, line ).
+---------------------------------------------------------------------------------
+Finished applying 'set_property' XDC Constraints : Time (s): cpu = 00:00:11 ; elapsed = 00:00:14 . Memory (MB): peak = 2555.688 ; gain = 399.121 ; free physical = 1960 ; free virtual = 175964
+---------------------------------------------------------------------------------
+INFO: [Synth 8-802] inferred FSM for state register 'sdphyinit_state_reg' in module 'vc707_sdtest'
+INFO: [Synth 8-802] inferred FSM for state register 'sdphycmdw_state_reg' in module 'vc707_sdtest'
+INFO: [Synth 8-802] inferred FSM for state register 'sdcore_state_reg' in module 'vc707_sdtest'
+---------------------------------------------------------------------------------------------------
+                   State |                     New Encoding |                Previous Encoding 
+---------------------------------------------------------------------------------------------------
+                  iSTATE |                              001 |                               00
+*
+                 iSTATE0 |                              010 |                               01
+                 iSTATE1 |                              100 |                               10
+---------------------------------------------------------------------------------------------------
+INFO: [Synth 8-3354] encoded FSM with state register 'sdphycmdw_state_reg' using encoding 'one-hot' in module 'vc707_sdtest'
+---------------------------------------------------------------------------------------------------
+                   State |                     New Encoding |                Previous Encoding 
+---------------------------------------------------------------------------------------------------
+                  iSTATE |                               01 |                               00
+*
+                 iSTATE1 |                               10 |                               10
+---------------------------------------------------------------------------------------------------
+INFO: [Synth 8-3354] encoded FSM with state register 'sdphyinit_state_reg' using encoding 'one-hot' in module 'vc707_sdtest'
+---------------------------------------------------------------------------------------------------
+                   State |                     New Encoding |                Previous Encoding 
+---------------------------------------------------------------------------------------------------
+                  iSTATE |                               01 |                              000
+*
+                 iSTATE0 |                               10 |                              001
+---------------------------------------------------------------------------------------------------
+INFO: [Synth 8-3354] encoded FSM with state register 'sdcore_state_reg' using encoding 'one-hot' in module 'vc707_sdtest'
+---------------------------------------------------------------------------------
+Finished RTL Optimization Phase 2 : Time (s): cpu = 00:00:12 ; elapsed = 00:00:15 . Memory (MB): peak = 2555.688 ; gain = 399.121 ; free physical = 1947 ; free virtual = 175953
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start RTL Component Statistics 
+---------------------------------------------------------------------------------
+Detailed RTL Component Info : 
++---Adders : 
+	   2 Input   32 Bit       Adders := 4     
+	   2 Input   16 Bit       Adders := 2     
+	   2 Input   10 Bit       Adders := 4     
+	   2 Input    8 Bit       Adders := 4     
+	   2 Input    7 Bit       Adders := 1     
+	   2 Input    6 Bit       Adders := 3     
+	   2 Input    5 Bit       Adders := 1     
+	   2 Input    3 Bit       Adders := 3     
+	   2 Input    1 Bit       Adders := 1     
++---XORs : 
+	   2 Input      1 Bit         XORs := 36    
++---Registers : 
+	              128 Bit    Registers := 1     
+	               32 Bit    Registers := 6     
+	               16 Bit    Registers := 11    
+	               10 Bit    Registers := 2     
+	                9 Bit    Registers := 1     
+	                8 Bit    Registers := 10    
+	                7 Bit    Registers := 2     
+	                6 Bit    Registers := 2     
+	                5 Bit    Registers := 2     
+	                4 Bit    Registers := 2     
+	                3 Bit    Registers := 6     
+	                1 Bit    Registers := 25    
++---RAMs : 
+	              896 Bit	(64 X 14 bit)          RAMs := 1     
++---Muxes : 
+	   2 Input  128 Bit        Muxes := 3     
+	  30 Input   32 Bit        Muxes := 1     
+	   5 Input   32 Bit        Muxes := 1     
+	   6 Input   32 Bit        Muxes := 1     
+	   2 Input   32 Bit        Muxes := 4     
+	   8 Input   32 Bit        Muxes := 1     
+	   2 Input   26 Bit        Muxes := 1     
+	   4 Input   16 Bit        Muxes := 1     
+	  30 Input   16 Bit        Muxes := 1     
+	   2 Input   16 Bit        Muxes := 4     
+	   5 Input   10 Bit        Muxes := 1     
+	   2 Input   10 Bit        Muxes := 5     
+	   4 Input   10 Bit        Muxes := 1     
+	   2 Input    8 Bit        Muxes := 24    
+	   3 Input    8 Bit        Muxes := 1     
+	   6 Input    8 Bit        Muxes := 3     
+	   8 Input    8 Bit        Muxes := 2     
+	   5 Input    8 Bit        Muxes := 1     
+	   5 Input    5 Bit        Muxes := 1     
+	   2 Input    5 Bit        Muxes := 9     
+	  10 Input    4 Bit        Muxes := 1     
+	   2 Input    4 Bit        Muxes := 2     
+	  30 Input    4 Bit        Muxes := 1     
+	   9 Input    4 Bit        Muxes := 1     
+	   2 Input    3 Bit        Muxes := 6     
+	   6 Input    3 Bit        Muxes := 2     
+	   3 Input    3 Bit        Muxes := 1     
+	   7 Input    3 Bit        Muxes := 1     
+	  13 Input    3 Bit        Muxes := 1     
+	   4 Input    3 Bit        Muxes := 1     
+	  30 Input    3 Bit        Muxes := 2     
+	  30 Input    2 Bit        Muxes := 1     
+	   2 Input    2 Bit        Muxes := 5     
+	  30 Input    1 Bit        Muxes := 5     
+	   2 Input    1 Bit        Muxes := 63    
+	   9 Input    1 Bit        Muxes := 10    
+	   5 Input    1 Bit        Muxes := 15    
+	   3 Input    1 Bit        Muxes := 6     
+	   6 Input    1 Bit        Muxes := 11    
+---------------------------------------------------------------------------------
+Finished RTL Component Statistics 
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Part Resource Summary
+---------------------------------------------------------------------------------
+Part Resources:
+DSPs: 2800 (col length:140)
+BRAMs: 2060 (col length: RAMB18 140 RAMB36 70)
+---------------------------------------------------------------------------------
+Finished Part Resource Summary
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Cross Boundary and Area Optimization
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Cross Boundary and Area Optimization : Time (s): cpu = 00:00:16 ; elapsed = 00:00:19 . Memory (MB): peak = 2555.688 ; gain = 399.121 ; free physical = 1978 ; free virtual = 175989
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start ROM, RAM, DSP and Shift Register Reporting
+---------------------------------------------------------------------------------
+
+ROM: Preliminary Mapping	Report
++-------------+--------------------------------+---------------+----------------+
+|Module Name  | RTL Object                     | Depth x Width | Implemented As | 
++-------------+--------------------------------+---------------+----------------+
+|vc707_sdtest | sdtest_step_fsm_next_value_ce1 | 32x1          | LUT            | 
+|vc707_sdtest | sdtest_send                    | 32x1          | LUT            | 
+|vc707_sdtest | sdtest_step_fsm_next_value_ce1 | 32x1          | LUT            | 
+|vc707_sdtest | sdtest_send                    | 32x1          | LUT            | 
++-------------+--------------------------------+---------------+----------------+
+
+---------------------------------------------------------------------------------
+Finished ROM, RAM, DSP and Shift Register Reporting
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Applying XDC Timing Constraints
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Applying XDC Timing Constraints : Time (s): cpu = 00:00:20 ; elapsed = 00:00:24 . Memory (MB): peak = 2555.688 ; gain = 399.121 ; free physical = 1925 ; free virtual = 175935
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Timing Optimization
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Timing Optimization : Time (s): cpu = 00:00:20 ; elapsed = 00:00:24 . Memory (MB): peak = 2555.688 ; gain = 399.121 ; free physical = 1914 ; free virtual = 175925
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Technology Mapping
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Technology Mapping : Time (s): cpu = 00:00:21 ; elapsed = 00:00:24 . Memory (MB): peak = 2555.688 ; gain = 399.121 ; free physical = 1921 ; free virtual = 175931
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Flattening Before IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Flattening Before IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Final Netlist Cleanup
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Final Netlist Cleanup
+---------------------------------------------------------------------------------
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:3157]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:3157]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:3157]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:3157]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:3157]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:3157]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:3157]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:752]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:3110]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:3106]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:759]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4639]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4632]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4632]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4632]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4632]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4632]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4632]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4632]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4632]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4632]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4632]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4742]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4742]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4742]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:1458]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:3093]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4618]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:801]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4645]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4645]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4645]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4645]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4645]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4645]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4645]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4645]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4645]
+WARNING: [Synth 8-5396] Clock pin C has keep related attribute (keep/mark_debug/dont_touch) which could create extra logic on its net [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.v:4645]
+INFO: [Common 17-14] Message 'Synth 8-5396' appears 100 times and further instances of the messages will be disabled. Use the Tcl command set_msg_config to change the current settings.
+---------------------------------------------------------------------------------
+Finished IO Insertion : Time (s): cpu = 00:00:23 ; elapsed = 00:00:27 . Memory (MB): peak = 2555.688 ; gain = 399.121 ; free physical = 1947 ; free virtual = 175957
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Instances
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Instances : Time (s): cpu = 00:00:23 ; elapsed = 00:00:27 . Memory (MB): peak = 2555.688 ; gain = 399.121 ; free physical = 1947 ; free virtual = 175957
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Rebuilding User Hierarchy
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Rebuilding User Hierarchy : Time (s): cpu = 00:00:23 ; elapsed = 00:00:27 . Memory (MB): peak = 2555.688 ; gain = 399.121 ; free physical = 1946 ; free virtual = 175957
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Ports
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Ports : Time (s): cpu = 00:00:23 ; elapsed = 00:00:27 . Memory (MB): peak = 2555.688 ; gain = 399.121 ; free physical = 1946 ; free virtual = 175957
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Handling Custom Attributes
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Handling Custom Attributes : Time (s): cpu = 00:00:23 ; elapsed = 00:00:27 . Memory (MB): peak = 2555.688 ; gain = 399.121 ; free physical = 1946 ; free virtual = 175957
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Nets
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Nets : Time (s): cpu = 00:00:23 ; elapsed = 00:00:27 . Memory (MB): peak = 2555.688 ; gain = 399.121 ; free physical = 1946 ; free virtual = 175957
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Writing Synthesis Report
+---------------------------------------------------------------------------------
+
+Report BlackBoxes: 
++------+--------------+----------+
+|      |BlackBox name |Instances |
++------+--------------+----------+
+|1     |sdtest_ila    |         1|
++------+--------------+----------+
+
+Report Cell Usage: 
++------+-----------+------+
+|      |Cell       |Count |
++------+-----------+------+
+|1     |sdtest_ila |     1|
+|2     |BUFG       |     1|
+|3     |CARRY4     |    33|
+|4     |IDDR       |     5|
+|5     |LUT1       |   151|
+|6     |LUT2       |    41|
+|7     |LUT3       |    61|
+|8     |LUT4       |    93|
+|9     |LUT5       |    78|
+|10    |LUT6       |   111|
+|11    |MMCME2_ADV |     1|
+|12    |ODDR       |    11|
+|13    |FDPE       |     2|
+|14    |FDRE       |   265|
+|15    |IBUF       |     1|
+|16    |IBUFDS     |     1|
+|17    |IOBUF      |     5|
+|18    |OBUF       |     9|
++------+-----------+------+
+---------------------------------------------------------------------------------
+Finished Writing Synthesis Report : Time (s): cpu = 00:00:23 ; elapsed = 00:00:27 . Memory (MB): peak = 2555.688 ; gain = 399.121 ; free physical = 1946 ; free virtual = 175957
+---------------------------------------------------------------------------------
+Synthesis finished with 0 errors, 0 critical warnings and 272 warnings.
+Synthesis Optimization Runtime : Time (s): cpu = 00:00:20 ; elapsed = 00:00:23 . Memory (MB): peak = 2555.688 ; gain = 233.438 ; free physical = 1946 ; free virtual = 175957
+Synthesis Optimization Complete : Time (s): cpu = 00:00:23 ; elapsed = 00:00:27 . Memory (MB): peak = 2555.688 ; gain = 399.121 ; free physical = 1947 ; free virtual = 175958
+INFO: [Project 1-571] Translating synthesized netlist
+INFO: [Project 1-454] Reading design checkpoint '/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/ip/sdtest_ila.srcs/sources_1/ip/sdtest_ila/sdtest_ila.dcp' for cell 'sdtest_ila'
+Netlist sorting complete. Time (s): cpu = 00:00:00.07 ; elapsed = 00:00:00.07 . Memory (MB): peak = 2555.688 ; gain = 0.000 ; free physical = 2048 ; free virtual = 176059
+INFO: [Netlist 29-17] Analyzing 952 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds
+INFO: [Project 1-479] Netlist was created with Vivado 2020.1.1
+INFO: [Project 1-570] Preparing netlist for logic optimization
+INFO: [Chipscope 16-324] Core: sdtest_ila UUID: 30a647a1-1e31-576d-b6e8-2d288d7fa301 
+CRITICAL WARNING: [Chipscope 16-3] Cannot debug net 'sdtest_dbg_sd_cmd'; it is not accessible from the fabric routing.
+CRITICAL WARNING: [Chipscope 16-3] Cannot debug net 'sdtest_dbg_sd_dat[0]'; it is not accessible from the fabric routing.
+CRITICAL WARNING: [Chipscope 16-3] Cannot debug net 'sdtest_dbg_sd_dat[1]'; it is not accessible from the fabric routing.
+CRITICAL WARNING: [Chipscope 16-3] Cannot debug net 'sdtest_dbg_sd_dat[2]'; it is not accessible from the fabric routing.
+CRITICAL WARNING: [Chipscope 16-3] Cannot debug net 'sdtest_dbg_sd_dat[3]'; it is not accessible from the fabric routing.
+Parsing XDC File [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.xdc]
+Finished Parsing XDC File [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest.xdc]
+Parsing XDC File [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/ip/sdtest_ila.srcs/sources_1/ip/sdtest_ila/ila_v6_2/constraints/ila_impl.xdc] for cell 'sdtest_ila/inst'
+Finished Parsing XDC File [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/ip/sdtest_ila.srcs/sources_1/ip/sdtest_ila/ila_v6_2/constraints/ila_impl.xdc] for cell 'sdtest_ila/inst'
+Parsing XDC File [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/ip/sdtest_ila.srcs/sources_1/ip/sdtest_ila/ila_v6_2/constraints/ila.xdc] for cell 'sdtest_ila/inst'
+Finished Parsing XDC File [/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/ip/sdtest_ila.srcs/sources_1/ip/sdtest_ila/ila_v6_2/constraints/ila.xdc] for cell 'sdtest_ila/inst'
+INFO: [Opt 31-138] Pushed 0 inverter(s) to 0 load pin(s).
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 2572.531 ; gain = 0.000 ; free physical = 2011 ; free virtual = 176023
+INFO: [Project 1-111] Unisim Transformation Summary:
+  A total of 537 instances were transformed.
+  CFGLUT5 => CFGLUT5 (SRL16E, SRLC32E): 500 instances
+  IOBUF => IOBUF (IBUF, OBUFT): 5 instances
+  RAM64M => RAM64M (RAMD64E(x4)): 32 instances
+
+INFO: [Common 17-83] Releasing license: Synthesis
+64 Infos, 119 Warnings, 5 Critical Warnings and 0 Errors encountered.
+synth_design completed successfully
+synth_design: Time (s): cpu = 00:00:41 ; elapsed = 00:01:13 . Memory (MB): peak = 2572.531 ; gain = 430.000 ; free physical = 2086 ; free virtual = 176098
+# report_timing_summary -file vc707_sdtest_timing_synth.rpt
+INFO: [Timing 38-35] Done setting XDC timing constraints.
+INFO: [Timing 38-2] Deriving generated clocks
+INFO: [Timing 38-91] UpdateTimingParams: Speed grade: -2, Delay Type: min_max.
+INFO: [Timing 38-191] Multithreading enabled for timing update using a maximum of 8 CPUs
+report_timing_summary: Time (s): cpu = 00:00:06 ; elapsed = 00:00:05 . Memory (MB): peak = 3003.441 ; gain = 430.910 ; free physical = 1717 ; free virtual = 175729
+# report_utilization -hierarchical -file vc707_sdtest_utilization_hierarchical_synth.rpt
+# report_utilization -file vc707_sdtest_utilization_synth.rpt
+# write_checkpoint -force vc707_sdtest_synth.dcp
+INFO: [Timing 38-480] Writing timing data to binary archive.
+Writing placer database...
+Writing XDEF routing.
+Writing XDEF routing logical nets.
+Writing XDEF routing special nets.
+Write XDEF Complete: Time (s): cpu = 00:00:00.08 ; elapsed = 00:00:00.01 . Memory (MB): peak = 3055.336 ; gain = 11.875 ; free physical = 1697 ; free virtual = 175712
+INFO: [Common 17-1381] The checkpoint '/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest_synth.dcp' has been generated.
+# opt_design -directive default
+Command: opt_design -directive default
+INFO: [Vivado_Tcl 4-136] Directive used for opt_design is: default
+Attempting to get a license for feature 'Implementation' and/or device 'xc7vx485t'
+INFO: [Common 17-349] Got license for feature 'Implementation' and/or device 'xc7vx485t'
+INFO: [Common 17-1540] The version limit for your license is '2021.03' and has expired for new software. A version limit expiration means that, although you may be able to continue to use the current version of tools or IP with this license, you will not be eligible for any updates or new releases.
+Running DRC as a precondition to command opt_design
+
+Starting DRC Task
+INFO: [DRC 23-27] Running DRC with 8 threads
+INFO: [Project 1-461] DRC finished with 0 Errors
+INFO: [Project 1-462] Please refer to the DRC report (report_drc) for more information.
+
+Time (s): cpu = 00:00:02 ; elapsed = 00:00:01 . Memory (MB): peak = 3131.879 ; gain = 76.543 ; free physical = 1730 ; free virtual = 175745
+
+Starting Cache Timing Information Task
+Ending Cache Timing Information Task | Checksum: 1e8abbe19
+
+Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 3131.879 ; gain = 0.000 ; free physical = 1730 ; free virtual = 175745
+
+Starting Logic Optimization Task
+
+Phase 1 Generate And Synthesize Debug Cores
+INFO: [Chipscope 16-329] Generating Script for core instance : dbg_hub 
+INFO: [IP_Flow 19-3806] Processing IP xilinx.com:ip:xsdbm:3.0 for cell dbg_hub_CV.
+Netlist sorting complete. Time (s): cpu = 00:00:00.01 ; elapsed = 00:00:00.02 . Memory (MB): peak = 3210.676 ; gain = 0.000 ; free physical = 2571 ; free virtual = 175115
+Phase 1 Generate And Synthesize Debug Cores | Checksum: 1f5fee84e
+
+Time (s): cpu = 00:01:14 ; elapsed = 00:02:16 . Memory (MB): peak = 3210.676 ; gain = 18.812 ; free physical = 2571 ; free virtual = 175115
+
+Phase 2 Retarget
+INFO: [Opt 31-138] Pushed 0 inverter(s) to 0 load pin(s).
+INFO: [Opt 31-49] Retargeted 0 cell(s).
+Phase 2 Retarget | Checksum: 10a9e6fe7
+
+Time (s): cpu = 00:01:14 ; elapsed = 00:02:17 . Memory (MB): peak = 3210.676 ; gain = 18.812 ; free physical = 2568 ; free virtual = 175112
+INFO: [Opt 31-389] Phase Retarget created 4 cells and removed 11 cells
+INFO: [Opt 31-1021] In phase Retarget, 158 netlist objects are constrained preventing optimization. Please run opt_design with -debug_log to get more detail. 
+
+Phase 3 Constant propagation
+INFO: [Opt 31-138] Pushed 0 inverter(s) to 0 load pin(s).
+Phase 3 Constant propagation | Checksum: 106334ab4
+
+Time (s): cpu = 00:01:14 ; elapsed = 00:02:17 . Memory (MB): peak = 3210.676 ; gain = 18.812 ; free physical = 2571 ; free virtual = 175115
+INFO: [Opt 31-389] Phase Constant propagation created 0 cells and removed 16 cells
+INFO: [Opt 31-1021] In phase Constant propagation, 174 netlist objects are constrained preventing optimization. Please run opt_design with -debug_log to get more detail. 
+
+Phase 4 Sweep
+Phase 4 Sweep | Checksum: 18cfdefee
+
+Time (s): cpu = 00:01:15 ; elapsed = 00:02:17 . Memory (MB): peak = 3210.676 ; gain = 18.812 ; free physical = 2572 ; free virtual = 175117
+INFO: [Opt 31-389] Phase Sweep created 0 cells and removed 38 cells
+INFO: [Opt 31-1021] In phase Sweep, 1101 netlist objects are constrained preventing optimization. Please run opt_design with -debug_log to get more detail. 
+
+Phase 5 BUFG optimization
+Phase 5 BUFG optimization | Checksum: 18cfdefee
+
+Time (s): cpu = 00:01:15 ; elapsed = 00:02:17 . Memory (MB): peak = 3210.676 ; gain = 18.812 ; free physical = 2577 ; free virtual = 175121
+INFO: [Opt 31-662] Phase BUFG optimization created 0 cells of which 0 are BUFGs and removed 0 cells.
+INFO: [Opt 31-1021] In phase BUFG optimization, 1 netlist objects are constrained preventing optimization. Please run opt_design with -debug_log to get more detail. 
+
+Phase 6 Shift Register Optimization
+INFO: [Opt 31-1064] SRL Remap converted 0 SRLs to 0 registers and converted 0 registers of register chains to 0 SRLs
+Phase 6 Shift Register Optimization | Checksum: 18cfdefee
+
+Time (s): cpu = 00:01:15 ; elapsed = 00:02:17 . Memory (MB): peak = 3210.676 ; gain = 18.812 ; free physical = 2576 ; free virtual = 175120
+INFO: [Opt 31-389] Phase Shift Register Optimization created 0 cells and removed 0 cells
+
+Phase 7 Post Processing Netlist
+Phase 7 Post Processing Netlist | Checksum: 18cfdefee
+
+Time (s): cpu = 00:01:15 ; elapsed = 00:02:17 . Memory (MB): peak = 3210.676 ; gain = 18.812 ; free physical = 2576 ; free virtual = 175120
+INFO: [Opt 31-389] Phase Post Processing Netlist created 0 cells and removed 0 cells
+INFO: [Opt 31-1021] In phase Post Processing Netlist, 159 netlist objects are constrained preventing optimization. Please run opt_design with -debug_log to get more detail. 
+Opt_design Change Summary
+=========================
+
+
+-------------------------------------------------------------------------------------------------------------------------
+|  Phase                        |  #Cells created  |  #Cells Removed  |  #Constrained objects preventing optimizations  |
+-------------------------------------------------------------------------------------------------------------------------
+|  Retarget                     |               4  |              11  |                                            158  |
+|  Constant propagation         |               0  |              16  |                                            174  |
+|  Sweep                        |               0  |              38  |                                           1101  |
+|  BUFG optimization            |               0  |               0  |                                              1  |
+|  Shift Register Optimization  |               0  |               0  |                                              0  |
+|  Post Processing Netlist      |               0  |               0  |                                            159  |
+-------------------------------------------------------------------------------------------------------------------------
+
+
+
+Starting Connectivity Check Task
+
+Time (s): cpu = 00:00:00.02 ; elapsed = 00:00:00.02 . Memory (MB): peak = 3210.676 ; gain = 0.000 ; free physical = 2576 ; free virtual = 175120
+Ending Logic Optimization Task | Checksum: 1c6c217d3
+
+Time (s): cpu = 00:01:15 ; elapsed = 00:02:17 . Memory (MB): peak = 3210.676 ; gain = 18.812 ; free physical = 2576 ; free virtual = 175120
+
+Starting Power Optimization Task
+INFO: [Pwropt 34-132] Skipping clock gating for clocks with a period < 2.00 ns.
+INFO: [Timing 38-35] Done setting XDC timing constraints.
+Running Vector-less Activity Propagation...
+
+Finished Running Vector-less Activity Propagation
+INFO: [Pwropt 34-9] Applying IDT optimizations ...
+INFO: [Pwropt 34-10] Applying ODC optimizations ...
+
+
+Starting PowerOpt Patch Enables Task
+INFO: [Pwropt 34-162] WRITE_MODE attribute of 0 BRAM(s) out of a total of 20 has been updated to save power. Run report_power_opt to get a complete listing of the BRAMs updated.
+INFO: [Pwropt 34-201] Structural ODC has moved 0 WE to EN ports
+Number of BRAM Ports augmented: 36 newly gated: 0 Total Ports: 40
+Ending PowerOpt Patch Enables Task | Checksum: 1c8167c83
+
+Time (s): cpu = 00:00:00.13 ; elapsed = 00:00:00.13 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2440 ; free virtual = 174984
+Ending Power Optimization Task | Checksum: 1c8167c83
+
+Time (s): cpu = 00:00:05 ; elapsed = 00:00:02 . Memory (MB): peak = 3518.637 ; gain = 307.961 ; free physical = 2462 ; free virtual = 175006
+
+Starting Final Cleanup Task
+
+Starting Logic Optimization Task
+INFO: [Timing 38-35] Done setting XDC timing constraints.
+Ending Logic Optimization Task | Checksum: 211970323
+
+Time (s): cpu = 00:00:01 ; elapsed = 00:00:00.61 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2477 ; free virtual = 175022
+Ending Final Cleanup Task | Checksum: 211970323
+
+Time (s): cpu = 00:00:03 ; elapsed = 00:00:02 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2477 ; free virtual = 175022
+
+Starting Netlist Obfuscation Task
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2477 ; free virtual = 175022
+Ending Netlist Obfuscation Task | Checksum: 211970323
+
+Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2477 ; free virtual = 175022
+INFO: [Common 17-83] Releasing license: Implementation
+34 Infos, 0 Warnings, 0 Critical Warnings and 0 Errors encountered.
+opt_design completed successfully
+opt_design: Time (s): cpu = 00:01:26 ; elapsed = 00:02:41 . Memory (MB): peak = 3518.637 ; gain = 463.301 ; free physical = 2477 ; free virtual = 175022
+# place_design -directive default
+Command: place_design -directive default
+Attempting to get a license for feature 'Implementation' and/or device 'xc7vx485t'
+INFO: [Common 17-349] Got license for feature 'Implementation' and/or device 'xc7vx485t'
+INFO: [Common 17-1540] The version limit for your license is '2021.03' and has expired for new software. A version limit expiration means that, although you may be able to continue to use the current version of tools or IP with this license, you will not be eligible for any updates or new releases.
+INFO: [Timing 38-35] Done setting XDC timing constraints.
+INFO: [DRC 23-27] Running DRC with 8 threads
+INFO: [Vivado_Tcl 4-198] DRC finished with 0 Errors
+INFO: [Vivado_Tcl 4-199] Please refer to the DRC report (report_drc) for more information.
+Running DRC as a precondition to command place_design
+INFO: [DRC 23-27] Running DRC with 8 threads
+INFO: [Vivado_Tcl 4-198] DRC finished with 0 Errors
+INFO: [Vivado_Tcl 4-199] Please refer to the DRC report (report_drc) for more information.
+
+Starting Placer Task
+INFO: [Place 46-5] The placer was invoked with the 'default' directive.
+INFO: [Place 30-611] Multithreading enabled for place_design using a maximum of 8 CPUs
+
+Phase 1 Placer Initialization
+
+Phase 1.1 Placer Initialization Netlist Sorting
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2428 ; free virtual = 174974
+Phase 1.1 Placer Initialization Netlist Sorting | Checksum: 1a003ac17
+
+Time (s): cpu = 00:00:00.01 ; elapsed = 00:00:00.01 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2428 ; free virtual = 174974
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2428 ; free virtual = 174974
+
+Phase 1.2 IO Placement/ Clock Placement/ Build Placer Device
+Phase 1.2 IO Placement/ Clock Placement/ Build Placer Device | Checksum: d292843c
+
+Time (s): cpu = 00:00:02 ; elapsed = 00:00:01 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2367 ; free virtual = 174932
+
+Phase 1.3 Build Placer Netlist Model
+Phase 1.3 Build Placer Netlist Model | Checksum: 107fe7302
+
+Time (s): cpu = 00:00:07 ; elapsed = 00:00:03 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2491 ; free virtual = 175035
+
+Phase 1.4 Constrain Clocks/Macros
+Phase 1.4 Constrain Clocks/Macros | Checksum: 107fe7302
+
+Time (s): cpu = 00:00:07 ; elapsed = 00:00:03 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2493 ; free virtual = 175037
+Phase 1 Placer Initialization | Checksum: 107fe7302
+
+Time (s): cpu = 00:00:07 ; elapsed = 00:00:03 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2493 ; free virtual = 175037
+
+Phase 2 Global Placement
+
+Phase 2.1 Floorplanning
+Phase 2.1 Floorplanning | Checksum: 120a24394
+
+Time (s): cpu = 00:00:08 ; elapsed = 00:00:03 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2527 ; free virtual = 175072
+
+Phase 2.2 Global Placement Core
+
+Phase 2.2.1 Physical Synthesis In Placer
+INFO: [Physopt 32-1035] Found 0 LUTNM shape to break, 268 LUT instances to create LUTNM shape
+INFO: [Physopt 32-1044] Break lutnm for timing: one critical 0, two critical 0, total 0, new lutff created 0
+INFO: [Physopt 32-775] End 1 Pass. Optimized 109 nets or cells. Created 0 new cell, deleted 109 existing cells and moved 0 existing cell
+INFO: [Physopt 32-65] No nets found for high-fanout optimization.
+INFO: [Physopt 32-232] Optimized 0 net. Created 0 new instance.
+INFO: [Physopt 32-775] End 1 Pass. Optimized 0 net or cell. Created 0 new cell, deleted 0 existing cell and moved 0 existing cell
+INFO: [Physopt 32-670] No setup violation found.  DSP Register Optimization was not performed.
+INFO: [Physopt 32-670] No setup violation found.  Shift Register to Pipeline Optimization was not performed.
+INFO: [Physopt 32-670] No setup violation found.  Shift Register Optimization was not performed.
+INFO: [Physopt 32-670] No setup violation found.  BRAM Register Optimization was not performed.
+INFO: [Physopt 32-670] No setup violation found.  URAM Register Optimization was not performed.
+INFO: [Physopt 32-949] No candidate nets found for HD net replication
+INFO: [Physopt 32-775] End 1 Pass. Optimized 0 net or cell. Created 0 new cell, deleted 0 existing cell and moved 0 existing cell
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2368 ; free virtual = 174913
+
+Summary of Physical Synthesis Optimizations
+============================================
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+|  Optimization                                     |  Added Cells  |  Removed Cells  |  Optimized Cells/Nets  |  Dont Touch  |  Iterations  |  Elapsed   |
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+|  LUT Combining                                    |            0  |            109  |                   109  |           0  |           1  |  00:00:00  |
+|  Very High Fanout                                 |            0  |              0  |                     0  |           0  |           1  |  00:00:00  |
+|  DSP Register                                     |            0  |              0  |                     0  |           0  |           0  |  00:00:00  |
+|  Shift Register to Pipeline                       |            0  |              0  |                     0  |           0  |           0  |  00:00:00  |
+|  Shift Register                                   |            0  |              0  |                     0  |           0  |           0  |  00:00:00  |
+|  BRAM Register                                    |            0  |              0  |                     0  |           0  |           0  |  00:00:00  |
+|  URAM Register                                    |            0  |              0  |                     0  |           0  |           0  |  00:00:00  |
+|  Dynamic/Static Region Interface Net Replication  |            0  |              0  |                     0  |           0  |           1  |  00:00:00  |
+|  Total                                            |            0  |            109  |                   109  |           0  |           3  |  00:00:00  |
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+Phase 2.2.1 Physical Synthesis In Placer | Checksum: 238d671c3
+
+Time (s): cpu = 00:00:36 ; elapsed = 00:00:10 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2382 ; free virtual = 174927
+Phase 2.2 Global Placement Core | Checksum: 21d750526
+
+Time (s): cpu = 00:00:37 ; elapsed = 00:00:10 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2385 ; free virtual = 174930
+Phase 2 Global Placement | Checksum: 21d750526
+
+Time (s): cpu = 00:00:37 ; elapsed = 00:00:10 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2387 ; free virtual = 174932
+
+Phase 3 Detail Placement
+
+Phase 3.1 Commit Multi Column Macros
+Phase 3.1 Commit Multi Column Macros | Checksum: 25b169f12
+
+Time (s): cpu = 00:00:38 ; elapsed = 00:00:10 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2389 ; free virtual = 174934
+
+Phase 3.2 Commit Most Macros & LUTRAMs
+Phase 3.2 Commit Most Macros & LUTRAMs | Checksum: 1dbadc812
+
+Time (s): cpu = 00:00:41 ; elapsed = 00:00:11 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2406 ; free virtual = 174951
+
+Phase 3.3 Area Swap Optimization
+Phase 3.3 Area Swap Optimization | Checksum: 2741da895
+
+Time (s): cpu = 00:00:41 ; elapsed = 00:00:12 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2406 ; free virtual = 174951
+
+Phase 3.4 Pipeline Register Optimization
+Phase 3.4 Pipeline Register Optimization | Checksum: 23c5599bd
+
+Time (s): cpu = 00:00:41 ; elapsed = 00:00:12 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2406 ; free virtual = 174951
+
+Phase 3.5 Small Shape Detail Placement
+Phase 3.5 Small Shape Detail Placement | Checksum: 152cda659
+
+Time (s): cpu = 00:00:44 ; elapsed = 00:00:14 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2399 ; free virtual = 174943
+
+Phase 3.6 Re-assign LUT pins
+Phase 3.6 Re-assign LUT pins | Checksum: 11c1fa96e
+
+Time (s): cpu = 00:00:44 ; elapsed = 00:00:14 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2401 ; free virtual = 174946
+
+Phase 3.7 Pipeline Register Optimization
+Phase 3.7 Pipeline Register Optimization | Checksum: 1235e14c5
+
+Time (s): cpu = 00:00:44 ; elapsed = 00:00:14 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2401 ; free virtual = 174946
+Phase 3 Detail Placement | Checksum: 1235e14c5
+
+Time (s): cpu = 00:00:44 ; elapsed = 00:00:14 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2401 ; free virtual = 174946
+
+Phase 4 Post Placement Optimization and Clean-Up
+
+Phase 4.1 Post Commit Optimization
+INFO: [Timing 38-35] Done setting XDC timing constraints.
+
+Phase 4.1.1 Post Placement Optimization
+Post Placement Optimization Initialization | Checksum: 19997d6aa
+
+Phase 4.1.1.1 BUFG Insertion
+
+Starting Physical Synthesis Task
+
+Phase 1 Physical Synthesis Initialization
+INFO: [Physopt 32-721] Multithreading enabled for phys_opt_design using a maximum of 8 CPUs
+INFO: [Physopt 32-619] Estimated Timing Summary | WNS=1.549 | TNS=0.000 |
+Phase 1 Physical Synthesis Initialization | Checksum: 1e657c1fb
+
+Time (s): cpu = 00:00:00.78 ; elapsed = 00:00:00.20 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2410 ; free virtual = 174954
+INFO: [Place 46-56] BUFG insertion identified 0 candidate nets. Inserted BUFG: 0, Replicated BUFG Driver: 0, Skipped due to Placement/Routing Conflicts: 0, Skipped due to Timing Degradation: 0, Skipped due to Illegal Netlist: 0.
+Ending Physical Synthesis Task | Checksum: 11910f2a6
+
+Time (s): cpu = 00:00:00.80 ; elapsed = 00:00:00.23 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2410 ; free virtual = 174954
+Phase 4.1.1.1 BUFG Insertion | Checksum: 19997d6aa
+
+Time (s): cpu = 00:00:49 ; elapsed = 00:00:16 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2410 ; free virtual = 174954
+INFO: [Place 30-746] Post Placement Timing Summary WNS=1.549. For the most accurate timing information please run report_timing.
+Phase 4.1.1 Post Placement Optimization | Checksum: cc58c153
+
+Time (s): cpu = 00:00:49 ; elapsed = 00:00:16 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2410 ; free virtual = 174954
+Phase 4.1 Post Commit Optimization | Checksum: cc58c153
+
+Time (s): cpu = 00:00:49 ; elapsed = 00:00:16 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2410 ; free virtual = 174954
+
+Phase 4.2 Post Placement Cleanup
+Phase 4.2 Post Placement Cleanup | Checksum: cc58c153
+
+Time (s): cpu = 00:00:49 ; elapsed = 00:00:16 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2419 ; free virtual = 174963
+
+Phase 4.3 Placer Reporting
+Phase 4.3 Placer Reporting | Checksum: cc58c153
+
+Time (s): cpu = 00:00:50 ; elapsed = 00:00:16 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2421 ; free virtual = 174965
+
+Phase 4.4 Final Placement Cleanup
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2422 ; free virtual = 174967
+Phase 4.4 Final Placement Cleanup | Checksum: 4c031494
+
+Time (s): cpu = 00:00:50 ; elapsed = 00:00:16 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2423 ; free virtual = 174968
+Phase 4 Post Placement Optimization and Clean-Up | Checksum: 4c031494
+
+Time (s): cpu = 00:00:50 ; elapsed = 00:00:16 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2423 ; free virtual = 174968
+Ending Placer Task | Checksum: 2727eedb
+
+Time (s): cpu = 00:00:50 ; elapsed = 00:00:16 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2423 ; free virtual = 174968
+INFO: [Common 17-83] Releasing license: Implementation
+30 Infos, 0 Warnings, 0 Critical Warnings and 0 Errors encountered.
+place_design completed successfully
+place_design: Time (s): cpu = 00:00:53 ; elapsed = 00:00:33 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2503 ; free virtual = 175047
+# report_utilization -hierarchical -file vc707_sdtest_utilization_hierarchical_place.rpt
+# report_utilization -file vc707_sdtest_utilization_place.rpt
+# report_io -file vc707_sdtest_io.rpt
+report_io: Time (s): cpu = 00:00:00.21 ; elapsed = 00:00:00.30 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2455 ; free virtual = 175000
+# report_control_sets -verbose -file vc707_sdtest_control_sets.rpt
+report_control_sets: Time (s): cpu = 00:00:00.04 ; elapsed = 00:00:00.13 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2456 ; free virtual = 175001
+# report_clock_utilization -file vc707_sdtest_clock_utilization.rpt
+# write_checkpoint -force vc707_sdtest_place.dcp
+INFO: [Timing 38-480] Writing timing data to binary archive.
+Writing placer database...
+Writing XDEF routing.
+Writing XDEF routing logical nets.
+Writing XDEF routing special nets.
+Write XDEF Complete: Time (s): cpu = 00:00:01 ; elapsed = 00:00:00.40 . Memory (MB): peak = 3518.637 ; gain = 0.000 ; free physical = 2423 ; free virtual = 174984
+INFO: [Common 17-1381] The checkpoint '/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest_place.dcp' has been generated.
+# route_design -directive default
+Command: route_design -directive default
+Attempting to get a license for feature 'Implementation' and/or device 'xc7vx485t'
+INFO: [Common 17-349] Got license for feature 'Implementation' and/or device 'xc7vx485t'
+INFO: [Common 17-1540] The version limit for your license is '2021.03' and has expired for new software. A version limit expiration means that, although you may be able to continue to use the current version of tools or IP with this license, you will not be eligible for any updates or new releases.
+Running DRC as a precondition to command route_design
+INFO: [DRC 23-27] Running DRC with 8 threads
+INFO: [Vivado_Tcl 4-198] DRC finished with 0 Errors
+INFO: [Vivado_Tcl 4-199] Please refer to the DRC report (report_drc) for more information.
+
+
+Starting Routing Task
+INFO: [Route 35-270] Using Router directive 'default'.
+INFO: [Route 35-254] Multithreading enabled for route_design using a maximum of 8 CPUs
+Checksum: PlaceDB: 24d36bbb ConstDB: 0 ShapeSum: 2548320 RouteDB: 0
+
+Phase 1 Build RT Design
+Phase 1 Build RT Design | Checksum: 334d8cd3
+
+Time (s): cpu = 00:00:39 ; elapsed = 00:00:21 . Memory (MB): peak = 3677.672 ; gain = 159.035 ; free physical = 2089 ; free virtual = 174639
+Post Restoration Checksum: NetGraph: 16b86344 NumContArr: 1c95298f Constraints: 0 Timing: 0
+
+Phase 2 Router Initialization
+
+Phase 2.1 Create Timer
+Phase 2.1 Create Timer | Checksum: 334d8cd3
+
+Time (s): cpu = 00:00:39 ; elapsed = 00:00:21 . Memory (MB): peak = 3677.672 ; gain = 159.035 ; free physical = 2091 ; free virtual = 174641
+
+Phase 2.2 Fix Topology Constraints
+Phase 2.2 Fix Topology Constraints | Checksum: 334d8cd3
+
+Time (s): cpu = 00:00:39 ; elapsed = 00:00:21 . Memory (MB): peak = 3715.746 ; gain = 197.109 ; free physical = 2027 ; free virtual = 174577
+
+Phase 2.3 Pre Route Cleanup
+Phase 2.3 Pre Route Cleanup | Checksum: 334d8cd3
+
+Time (s): cpu = 00:00:39 ; elapsed = 00:00:21 . Memory (MB): peak = 3715.746 ; gain = 197.109 ; free physical = 2027 ; free virtual = 174577
+ Number of Nodes with overlaps = 0
+
+Phase 2.4 Update Timing
+Phase 2.4 Update Timing | Checksum: 1be5633af
+
+Time (s): cpu = 00:00:45 ; elapsed = 00:00:24 . Memory (MB): peak = 3808.457 ; gain = 289.820 ; free physical = 1886 ; free virtual = 174436
+INFO: [Route 35-416] Intermediate Timing Summary | WNS=1.437  | TNS=0.000  | WHS=-0.288 | THS=-773.332|
+
+
+Phase 2.5 Update Timing for Bus Skew
+
+Phase 2.5.1 Update Timing
+Phase 2.5.1 Update Timing | Checksum: 1bbd36064
+
+Time (s): cpu = 00:00:48 ; elapsed = 00:00:25 . Memory (MB): peak = 3808.457 ; gain = 289.820 ; free physical = 1896 ; free virtual = 174446
+INFO: [Route 35-416] Intermediate Timing Summary | WNS=1.437  | TNS=0.000  | WHS=N/A    | THS=N/A    |
+
+Phase 2.5 Update Timing for Bus Skew | Checksum: 21c54b614
+
+Time (s): cpu = 00:00:48 ; elapsed = 00:00:25 . Memory (MB): peak = 3808.457 ; gain = 289.820 ; free physical = 1896 ; free virtual = 174446
+Phase 2 Router Initialization | Checksum: 14c9a5070
+
+Time (s): cpu = 00:00:48 ; elapsed = 00:00:25 . Memory (MB): peak = 3808.457 ; gain = 289.820 ; free physical = 1896 ; free virtual = 174446
+
+Router Utilization Summary
+  Global Vertical Routing Utilization    = 0 %
+  Global Horizontal Routing Utilization  = 0 %
+  Routable Net Status*
+  *Does not include unroutable nets such as driverless and loadless.
+  Run report_route_status for detailed report.
+  Number of Failed Nets               = 7907
+    (Failed Nets is the sum of unrouted and partially routed nets)
+  Number of Unrouted Nets             = 7907
+  Number of Partially Routed Nets     = 0
+  Number of Node Overlaps             = 0
+
+
+Phase 3 Initial Routing
+Phase 3 Initial Routing | Checksum: 621c53d1
+
+Time (s): cpu = 00:00:52 ; elapsed = 00:00:27 . Memory (MB): peak = 3808.457 ; gain = 289.820 ; free physical = 1880 ; free virtual = 174430
+
+Phase 4 Rip-up And Reroute
+
+Phase 4.1 Global Iteration 0
+ Number of Nodes with overlaps = 740
+ Number of Nodes with overlaps = 12
+ Number of Nodes with overlaps = 0
+INFO: [Route 35-416] Intermediate Timing Summary | WNS=1.435  | TNS=0.000  | WHS=N/A    | THS=N/A    |
+
+Phase 4.1 Global Iteration 0 | Checksum: 16b1e97f2
+
+Time (s): cpu = 00:00:56 ; elapsed = 00:00:28 . Memory (MB): peak = 3808.457 ; gain = 289.820 ; free physical = 1907 ; free virtual = 174458
+Phase 4 Rip-up And Reroute | Checksum: 16b1e97f2
+
+Time (s): cpu = 00:00:56 ; elapsed = 00:00:28 . Memory (MB): peak = 3808.457 ; gain = 289.820 ; free physical = 1915 ; free virtual = 174465
+
+Phase 5 Delay and Skew Optimization
+
+Phase 5.1 Delay CleanUp
+Phase 5.1 Delay CleanUp | Checksum: 16b1e97f2
+
+Time (s): cpu = 00:00:56 ; elapsed = 00:00:28 . Memory (MB): peak = 3808.457 ; gain = 289.820 ; free physical = 1915 ; free virtual = 174465
+
+Phase 5.2 Clock Skew Optimization
+Phase 5.2 Clock Skew Optimization | Checksum: 16b1e97f2
+
+Time (s): cpu = 00:00:56 ; elapsed = 00:00:28 . Memory (MB): peak = 3808.457 ; gain = 289.820 ; free physical = 1915 ; free virtual = 174465
+Phase 5 Delay and Skew Optimization | Checksum: 16b1e97f2
+
+Time (s): cpu = 00:00:56 ; elapsed = 00:00:28 . Memory (MB): peak = 3808.457 ; gain = 289.820 ; free physical = 1915 ; free virtual = 174465
+
+Phase 6 Post Hold Fix
+
+Phase 6.1 Hold Fix Iter
+
+Phase 6.1.1 Update Timing
+Phase 6.1.1 Update Timing | Checksum: 106ee13a9
+
+Time (s): cpu = 00:00:57 ; elapsed = 00:00:29 . Memory (MB): peak = 3808.457 ; gain = 289.820 ; free physical = 1913 ; free virtual = 174464
+INFO: [Route 35-416] Intermediate Timing Summary | WNS=1.546  | TNS=0.000  | WHS=0.043  | THS=0.000  |
+
+Phase 6.1 Hold Fix Iter | Checksum: 1becc11e9
+
+Time (s): cpu = 00:00:57 ; elapsed = 00:00:29 . Memory (MB): peak = 3808.457 ; gain = 289.820 ; free physical = 1913 ; free virtual = 174464
+Phase 6 Post Hold Fix | Checksum: 1becc11e9
+
+Time (s): cpu = 00:00:57 ; elapsed = 00:00:29 . Memory (MB): peak = 3808.457 ; gain = 289.820 ; free physical = 1913 ; free virtual = 174464
+
+Phase 7 Route finalize
+
+Router Utilization Summary
+  Global Vertical Routing Utilization    = 0.250657 %
+  Global Horizontal Routing Utilization  = 0.311219 %
+  Routable Net Status*
+  *Does not include unroutable nets such as driverless and loadless.
+  Run report_route_status for detailed report.
+  Number of Failed Nets               = 0
+    (Failed Nets is the sum of unrouted and partially routed nets)
+  Number of Unrouted Nets             = 0
+  Number of Partially Routed Nets     = 0
+  Number of Node Overlaps             = 0
+
+Phase 7 Route finalize | Checksum: 1becc11e9
+
+Time (s): cpu = 00:00:58 ; elapsed = 00:00:29 . Memory (MB): peak = 3808.457 ; gain = 289.820 ; free physical = 1910 ; free virtual = 174460
+
+Phase 8 Verifying routed nets
+
+ Verification completed successfully
+Phase 8 Verifying routed nets | Checksum: 1becc11e9
+
+Time (s): cpu = 00:00:58 ; elapsed = 00:00:29 . Memory (MB): peak = 3808.457 ; gain = 289.820 ; free physical = 1906 ; free virtual = 174457
+
+Phase 9 Depositing Routes
+Phase 9 Depositing Routes | Checksum: 2469e10c2
+
+Time (s): cpu = 00:00:58 ; elapsed = 00:00:29 . Memory (MB): peak = 3808.457 ; gain = 289.820 ; free physical = 1916 ; free virtual = 174466
+
+Phase 10 Post Router Timing
+INFO: [Route 35-57] Estimated Timing Summary | WNS=1.546  | TNS=0.000  | WHS=0.043  | THS=0.000  |
+
+INFO: [Route 35-327] The final timing numbers are based on the router estimated timing analysis. For a complete and accurate timing signoff, please run report_timing_summary.
+Phase 10 Post Router Timing | Checksum: 2469e10c2
+
+Time (s): cpu = 00:00:58 ; elapsed = 00:00:29 . Memory (MB): peak = 3808.457 ; gain = 289.820 ; free physical = 1917 ; free virtual = 174467
+INFO: [Route 35-16] Router Completed Successfully
+
+Time (s): cpu = 00:00:58 ; elapsed = 00:00:29 . Memory (MB): peak = 3808.457 ; gain = 289.820 ; free physical = 1990 ; free virtual = 174540
+
+Routing Is Done.
+INFO: [Common 17-83] Releasing license: Implementation
+15 Infos, 0 Warnings, 0 Critical Warnings and 0 Errors encountered.
+route_design completed successfully
+route_design: Time (s): cpu = 00:01:01 ; elapsed = 00:00:49 . Memory (MB): peak = 3808.457 ; gain = 289.820 ; free physical = 2032 ; free virtual = 174582
+# phys_opt_design -directive default
+Command: phys_opt_design -directive default
+Attempting to get a license for feature 'Implementation' and/or device 'xc7vx485t'
+INFO: [Common 17-349] Got license for feature 'Implementation' and/or device 'xc7vx485t'
+INFO: [Common 17-1540] The version limit for your license is '2021.03' and has expired for new software. A version limit expiration means that, although you may be able to continue to use the current version of tools or IP with this license, you will not be eligible for any updates or new releases.
+INFO: [Vivado_Tcl 4-241] Physical synthesis in post route mode ( 100.0% nets are fully routed)
+INFO: [Vivado_Tcl 4-137] Directive used for phys_opt_design is: default
+INFO: [Vivado_Tcl 4-383] Design worst setup slack (WNS) is greater than or equal to 0.000 ns. Skipping all physical synthesis optimizations.
+INFO: [Vivado_Tcl 4-232] No setup violation found. The netlist was not modified.
+INFO: [Common 17-83] Releasing license: Implementation
+7 Infos, 0 Warnings, 0 Critical Warnings and 0 Errors encountered.
+phys_opt_design completed successfully
+phys_opt_design: Time (s): cpu = 00:00:03 ; elapsed = 00:00:16 . Memory (MB): peak = 3808.457 ; gain = 0.000 ; free physical = 2115 ; free virtual = 174666
+# write_checkpoint -force vc707_sdtest_route.dcp
+INFO: [Timing 38-480] Writing timing data to binary archive.
+Writing placer database...
+Writing XDEF routing.
+Writing XDEF routing logical nets.
+Writing XDEF routing special nets.
+Write XDEF Complete: Time (s): cpu = 00:00:01 ; elapsed = 00:00:00.45 . Memory (MB): peak = 3816.461 ; gain = 0.000 ; free physical = 2088 ; free virtual = 174657
+INFO: [Common 17-1381] The checkpoint '/home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest_route.dcp' has been generated.
+# report_timing_summary -no_header -no_detailed_paths
+INFO: [Timing 38-91] UpdateTimingParams: Speed grade: -2, Delay Type: min_max.
+INFO: [Timing 38-191] Multithreading enabled for timing update using a maximum of 8 CPUs
+WARNING: [Timing 38-436] There are set_bus_skew constraint(s) in this design. Please run report_bus_skew to ensure that bus skew requirements are met.
+------------------------------------------------------------------------------------------------
+| Timer Settings
+| --------------
+------------------------------------------------------------------------------------------------
+
+  Enable Multi Corner Analysis               :  Yes
+  Enable Pessimism Removal                   :  Yes
+  Pessimism Removal Resolution               :  Nearest Common Node
+  Enable Input Delay Default Clock           :  No
+  Enable Preset / Clear Arcs                 :  No
+  Disable Flight Delays                      :  No
+  Ignore I/O Paths                           :  No
+  Timing Early Launch at Borrowing Latches   :  No
+  Borrow Time for Max Delay Exceptions       :  Yes
+  Merge Timing Exceptions                    :  Yes
+
+  Corner  Analyze    Analyze    
+  Name    Max Paths  Min Paths  
+  ------  ---------  ---------  
+  Slow    Yes        Yes        
+  Fast    Yes        Yes        
+
+
+
+check_timing report
+
+Table of Contents
+-----------------
+1. checking no_clock (0)
+2. checking constant_clock (0)
+3. checking pulse_width_clock (0)
+4. checking unconstrained_internal_endpoints (0)
+5. checking no_input_delay (6)
+6. checking no_output_delay (14)
+7. checking multiple_clock (0)
+8. checking generated_clocks (0)
+9. checking loops (0)
+10. checking partial_input_delay (0)
+11. checking partial_output_delay (0)
+12. checking latch_loops (0)
+
+1. checking no_clock (0)
+------------------------
+ There are 0 register/latch pins with no clock.
+
+
+2. checking constant_clock (0)
+------------------------------
+ There are 0 register/latch pins with constant_clock.
+
+
+3. checking pulse_width_clock (0)
+---------------------------------
+ There are 0 register/latch pins which need pulse_width check
+
+
+4. checking unconstrained_internal_endpoints (0)
+------------------------------------------------
+ There are 0 pins that are not constrained for maximum delay.
+
+ There are 0 pins that are not constrained for maximum delay due to constant clock.
+
+
+5. checking no_input_delay (6)
+------------------------------
+ There are 6 input ports with no input delay specified. (HIGH)
+
+ There are 0 input ports with no input delay but user has a false path constraint.
+
+
+6. checking no_output_delay (14)
+--------------------------------
+ There are 14 ports with no output delay specified. (HIGH)
+
+ There are 0 ports with no output delay but user has a false path constraint
+
+ There are 0 ports with no output delay but with a timing clock defined on it or propagating through it
+
+
+7. checking multiple_clock (0)
+------------------------------
+ There are 0 register/latch pins with multiple clocks.
+
+
+8. checking generated_clocks (0)
+--------------------------------
+ There are 0 generated clocks that are not connected to a clock source.
+
+
+9. checking loops (0)
+---------------------
+ There are 0 combinational loops in the design.
+
+
+10. checking partial_input_delay (0)
+------------------------------------
+ There are 0 input ports with partial input delay specified.
+
+
+11. checking partial_output_delay (0)
+-------------------------------------
+ There are 0 ports with partial output delay specified.
+
+
+12. checking latch_loops (0)
+----------------------------
+ There are 0 combinational latch loops in the design through latch input
+
+
+
+------------------------------------------------------------------------------------------------
+| Design Timing Summary
+| ---------------------
+------------------------------------------------------------------------------------------------
+
+    WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
+    -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
+      1.568        0.000                      0                12610        0.043        0.000                      0                12594        1.100        0.000                       0                  6464  
+
+
+All user specified timing constraints are met.
+
+
+------------------------------------------------------------------------------------------------
+| Clock Summary
+| -------------
+------------------------------------------------------------------------------------------------
+
+Clock                                                                                       Waveform(ns)         Period(ns)      Frequency(MHz)
+-----                                                                                       ------------         ----------      --------------
+clk200_p                                                                                    {0.000 2.500}        5.000           200.000         
+  sdtest_crg0                                                                               {0.000 2.500}        5.000           200.000         
+  sdtest_crg1                                                                               {0.000 10.000}       20.000          50.000          
+dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_inst/SERIES7_BSCAN.bscan_inst/TCK  {0.000 16.500}       33.000          30.303          
+sys_clk                                                                                     {0.000 10.000}       20.000          50.000          
+
+
+------------------------------------------------------------------------------------------------
+| Intra Clock Table
+| -----------------
+------------------------------------------------------------------------------------------------
+
+Clock                                                                                           WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
+-----                                                                                           -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
+clk200_p                                                                                                                                                                                                                                      1.100        0.000                       0                     1  
+  sdtest_crg0                                                                                                                                                                                                                                 3.929        0.000                       0                     2  
+  sdtest_crg1                                                                                                                                                                                                                                18.592        0.000                       0                     2  
+dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_inst/SERIES7_BSCAN.bscan_inst/TCK       29.334        0.000                      0                  928        0.043        0.000                      0                  928       15.732        0.000                       0                   483  
+sys_clk                                                                                           1.568        0.000                      0                11475        0.065        0.000                      0                11475        9.232        0.000                       0                  5976  
+
+
+------------------------------------------------------------------------------------------------
+| Inter Clock Table
+| -----------------
+------------------------------------------------------------------------------------------------
+
+From Clock                                                                                  To Clock                                                                                        WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints  
+----------                                                                                  --------                                                                                        -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------  
+sys_clk                                                                                     dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_inst/SERIES7_BSCAN.bscan_inst/TCK       19.381        0.000                      0                    8                                                                        
+dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_inst/SERIES7_BSCAN.bscan_inst/TCK  sys_clk                                                                                          32.308        0.000                      0                    8                                                                        
+
+
+------------------------------------------------------------------------------------------------
+| Other Path Groups Table
+| -----------------------
+------------------------------------------------------------------------------------------------
+
+Path Group                                                                                  From Clock                                                                                  To Clock                                                                                        WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints  
+----------                                                                                  ----------                                                                                  --------                                                                                        -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------  
+**async_default**                                                                           dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_inst/SERIES7_BSCAN.bscan_inst/TCK  dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_inst/SERIES7_BSCAN.bscan_inst/TCK       29.995        0.000                      0                  100        0.142        0.000                      0                  100  
+**async_default**                                                                           sys_clk                                                                                     sys_clk                                                                                          17.957        0.000                      0                   91        0.101        0.000                      0                   91  
+
+
+# report_route_status -file vc707_sdtest_route_status.rpt
+# report_drc -file vc707_sdtest_drc.rpt
+Command: report_drc -file vc707_sdtest_drc.rpt
+INFO: [IP_Flow 19-1839] IP Catalog is up to date.
+INFO: [DRC 23-27] Running DRC with 8 threads
+INFO: [Coretcl 2-168] The results of DRC are in file /home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vc707_sdtest_drc.rpt.
+report_drc completed successfully
+# report_timing_summary -datasheet -max_paths 10 -file vc707_sdtest_timing.rpt
+INFO: [Timing 38-91] UpdateTimingParams: Speed grade: -2, Delay Type: min_max.
+INFO: [Timing 38-191] Multithreading enabled for timing update using a maximum of 8 CPUs
+WARNING: [Timing 38-436] There are set_bus_skew constraint(s) in this design. Please run report_bus_skew to ensure that bus skew requirements are met.
+# report_power -file vc707_sdtest_power.rpt
+Command: report_power -file vc707_sdtest_power.rpt
+Running Vector-less Activity Propagation...
+
+Finished Running Vector-less Activity Propagation
+WARNING: [Power 33-332] Found switching activity that implies high-fanout reset nets being asserted for excessive periods of time which may result in inaccurate power analysis.
+Resolution: To review and fix problems, please run Power Constraints Advisor in the GUI from Tools > Power Constraints Advisor or run report_power with the -advisory option to generate a text report.
+0 Infos, 1 Warnings, 0 Critical Warnings and 0 Errors encountered.
+report_power completed successfully
+# write_bitstream -force vc707_sdtest.bit 
+Command: write_bitstream -force vc707_sdtest.bit
+Attempting to get a license for feature 'Implementation' and/or device 'xc7vx485t'
+INFO: [Common 17-349] Got license for feature 'Implementation' and/or device 'xc7vx485t'
+INFO: [Common 17-1540] The version limit for your license is '2021.03' and has expired for new software. A version limit expiration means that, although you may be able to continue to use the current version of tools or IP with this license, you will not be eligible for any updates or new releases.
+Running DRC as a precondition to command write_bitstream
+INFO: [IP_Flow 19-1839] IP Catalog is up to date.
+INFO: [DRC 23-27] Running DRC with 8 threads
+WARNING: [DRC RTSTAT-10] No routable loads: 75 net(s) have no routable loads. The problem bus(es) and/or net(s) are dbg_hub/inst/BSCANID.u_xsdbm_id/CORE_XSDB.UUT_MASTER/U_ICON_INTERFACE/U_CMD6_RD/U_RD_FIFO/SUBCORE_FIFO.xsdbm_v3_0_0_rdfifo_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.rd/gr1.gr1_int.rfwft/aempty_fwft_i, dbg_hub/inst/BSCANID.u_xsdbm_id/CORE_XSDB.UUT_MASTER/U_ICON_INTERFACE/U_CMD7_CTL/ctl_reg[2:0], dbg_hub/inst/BSCANID.u_xsdbm_id/CORE_XSDB.UUT_MASTER/U_ICON_INTERFACE/U_CMD1/ctl_reg_en_2[1], dbg_hub/inst/BSCANID.u_xsdbm_id/CORE_XSDB.UUT_MASTER/U_ICON_INTERFACE/U_CMD7_CTL/ctl_reg_en_2[1], dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_switch/m_bscan_capture[0], dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_switch/m_bscan_drck[0], dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_switch/m_bscan_runtest[0], dbg_hub/inst/BSCANID.u_xsdbm_id/CORE_XSDB.UUT_MASTER/U_ICON_INTERFACE/U_CMD6_RD/U_RD_FIFO/SUBCORE_FIFO.xsdbm_v3_0_0_rdfifo_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.wr/gwhf.whf/overflow, dbg_hub/inst/BSCANID.u_xsdbm_id/CORE_XSDB.UUT_MASTER/U_ICON_INTERFACE/U_CMD6_WR/U_WR_FIFO/SUBCORE_FIFO.xsdbm_v3_0_0_wrfifo_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.wr/gwhf.whf/overflow, dbg_hub/inst/BSCANID.u_xsdbm_id/CORE_XSDB.UUT_MASTER/U_ICON_INTERFACE/U_CMD6_RD/U_RD_FIFO/SUBCORE_FIFO.xsdbm_v3_0_0_rdfifo_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.rd/gras.rsts/ram_empty_i, dbg_hub/inst/BSCANID.u_xsdbm_id/CORE_XSDB.UUT_MASTER/U_ICON_INTERFACE/U_CMD6_WR/U_WR_FIFO/SUBCORE_FIFO.xsdbm_v3_0_0_wrfifo_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.wr/gwas.wsts/ram_full_i, dbg_hub/inst/BSCANID.u_xsdbm_id/CORE_XSDB.UUT_MASTER/U_ICON_INTERFACE/U_CMD6_WR/U_WR_FIFO/SUBCORE_FIFO.xsdbm_v3_0_0_wrfifo_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/rstblk/rd_rst_reg[0], dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_inst/s_bscan_tms, sdtest_dbg_arg[0], sdtest_dbg_arg[2]... and (the first 15 of 67 listed).
+INFO: [Vivado 12-3199] DRC finished with 0 Errors, 1 Warnings
+INFO: [Vivado 12-3200] Please refer to the DRC report (report_drc) for more information.
+INFO: [Designutils 20-2272] Running write_bitstream with 8 threads.
+Loading data files...
+Loading site data...
+Loading route data...
+Processing options...
+Creating bitmap...
+Creating bitstream...
+Writing bitstream ./vc707_sdtest.bit...
+INFO: [Vivado 12-1842] Bitgen Completed Successfully.
+INFO: [Common 17-83] Releasing license: Implementation
+9 Infos, 1 Warnings, 0 Critical Warnings and 0 Errors encountered.
+write_bitstream completed successfully
+write_bitstream: Time (s): cpu = 00:00:26 ; elapsed = 00:00:46 . Memory (MB): peak = 4207.449 ; gain = 342.965 ; free physical = 1960 ; free virtual = 174536
+# quit
+INFO: [Common 17-206] Exiting Vivado at Tue Sep  8 14:02:23 2026...
