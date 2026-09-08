@@ -1,4 +1,4 @@
-.PHONY: vc707-litex-ddr-ethmin-smpsd help setup litex-deps prjxray-db tftp-serve tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: vc707-serv-sd vc707-serv-sd-flash vc707-litex-ddr-ethmin-smpsd help setup litex-deps prjxray-db tftp-serve tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 # Values that are properties of a machine rather than of the project --
@@ -288,6 +288,46 @@ vc707-litex-gen:
 	   $(LITEX_DIR)/build-$(LITEX_FLOW)/gateware/$(LITEX_TOP).xdc \
 	   $(LITEX_DIR)/build-$(LITEX_FLOW)/gateware/$(LITEX_TOP)_*.init $(LITEX_GATEWARE)/
 	@echo "refreshed $(LITEX_GATEWARE) from the $(LITEX_FLOW) build"
+
+# A deliberately tiny SD-card target, for iterating on nextpnr I/O fixes.
+#
+# The full SMP+SD SoC takes about fifty minutes through yosys and nextpnr,
+# which is far too slow to test one pseudo-pip change against.  This is the
+# same SERV SoC vc707-litex-gen builds -- bit-serial CPU, 16 KB of integrated
+# RAM, no DDR3 and no ethernet -- with the SD card added, so it exercises
+# exactly the LIOB18 pads and LIOI tiles the SD card uses and almost nothing
+# else.  Build it, flash it, and use the BIOS "sdcardboot" or the sdcard
+# commands to see whether the card answers.
+SERVSD_DIR ?= $(LITEX_DIR)/build-serv-sd
+SERVSD_OUT ?= litex_serv_sd_vc707.bit
+SERV_RTL   ?= $(CURDIR)/litex-deps/pythondata-cpu-serv/pythondata_cpu_serv/verilog/rtl
+
+vc707-serv-sd: fasm2netlist nextpnr
+	@scripts/pinned_yosys.sh >/dev/null
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
+	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
+	rm -rf $(SERVSD_DIR)
+	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
+		--with-led-chaser --cpu-type serv --integrated-main-ram-size 0x4000 \
+		--with-sdcard --flow openXC7 --no-compile-gateware --build \
+		--output-dir $(SERVSD_DIR)
+	cd $(SERVSD_DIR)/gateware && $(PINNED_YOSYS) -q -p \
+		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+		$(SERV_RTL)/*.v $(LITEX_TOP).v
+	$(NEXTPNR_BIN) --device $(LITEX_PART) \
+		-o xdc=$(SERVSD_DIR)/gateware/$(LITEX_TOP).xdc \
+		--json $(SERVSD_DIR)/gateware/$(LITEX_TOP).json \
+		-o fasm=$(SERVSD_DIR)/gateware/$(LITEX_TOP).fasm \
+		--router router2 $(NEXTPNR_FLAGS)
+	$(MAKE) check-fasm FASM=$(SERVSD_DIR)/gateware/$(LITEX_TOP).fasm PRJXRAY_DB=$(PRJXRAY_DB)
+	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 --part $(LITEX_PART) \
+		--db $(PRJXRAY_DB) --fasm $(SERVSD_DIR)/gateware/$(LITEX_TOP).fasm \
+		--output $(SERVSD_OUT)
+	@echo "built $(SERVSD_OUT) -- flash with 'make vc707-serv-sd-flash'"
+
+vc707-serv-sd-flash:
+	@test -f $(SERVSD_OUT) || { echo "no $(SERVSD_OUT); run 'make vc707-serv-sd' first"; exit 2; }
+	$(OFL) --cable digilent --freq 15000000 $(SERVSD_OUT)
 
 # Prove the LiteX SoC against its own synthesis.  Separate from vc707-litex
 # because the two answer different questions and cost different amounts: that
