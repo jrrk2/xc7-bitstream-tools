@@ -66,19 +66,68 @@ none of them in either bitstream:
 ## Still open
 
 Thirteen differences remain, all one cluster: `sdtest_init_wait[3..15]`, the
-16-bit PHY-init delay counter. For bit N the extracted cone omits bits 0..N-1 —
-the carry dependency is lost — while bit 2, the bottom of the same CARRY4 at
-`CLBLM_R_X31Y58`, proves.
+16-bit PHY-init delay counter. The mechanism is now known, and most of it is
+fixed.
 
-Traced so far, and all of it looks right: the chain is wired A -> B -> C -> D
-with `PRECYINIT.AX`; column A has `A6 = VCC`, `A3 = AQ` (bit 2) and `A1 = GND`,
-giving `CO_A = init_wait[2] & AX`; `AX` comes from `CLBLM_R_X31Y55_CLBLM_M_CMUX`
-via `COUTMUX.XOR`, and that column is emitted with `OUTMUX("XOR")` driving its
-MUX port. So the structure carries the dependency at every step checked, which
-is not yet consistent with what the cone comparison reports. Unresolved.
+`LVS_SUPPORT_OF` shows what each side reads in full rather than only the
+difference, and for `init_wait[3]` it said:
 
-One caution for whoever picks this up: `grep 'assign X ='` does not find a net
-driven by an instance PORT, and reading that as "no driver" sends you looking
-for a missing driver that is not missing. Both counting mistakes made here were
-of that kind — the other was `grep -o` counting a module name and an instance
-name of the same spelling as two cells.
+```
+gold reads (10): fsm_state[0..4] init_wait[0] init_wait[1] init_wait[2] init_wait[3] sys_rst
+gate reads  (7): fsm_state[0..4]                           init_wait[3] sys_rst
+```
+
+The extracted cone had lost the carry entirely. Not because the extraction is
+wrong -- walking the netlist by hand gives
+`init_wait[3] ^ (init_wait[2] & init_wait[1] & ...)`, a correct incrementer --
+but because **the checker had replaced the carry with a constant 0 and said
+nothing about it**.
+
+A column holds two functions over the same five pins. The router feeds a pin
+because the O6 half wants it; the O5 half is then wired to a signal it ignores.
+The cone builder evaluated all six inputs before consulting the truth table, so
+it walked a path the logic does not have, and that path closed a ring. It
+called the ring a combinational loop and broke it with a constant -- and a
+constant is indistinguishable from a real zero once it is in the network.
+
+Two fixes: descend only into inputs the truth table actually depends on, over a
+reduced table; and report every loop that still gets broken, both as a warning
+naming the cycle and as a line beside the verdict. The second matters as much
+as the first: `vc707-gatedcount` proved 27/0 while silently breaking two loops.
+A proof from such a run is conditional on those paths, and it was not saying so.
+
+`examples/vc707-gatedcount` is that reduced case -- 27 registers rather than
+347, and it still proves, which is exactly why it is worth keeping.
+
+What is left is a single nine-node ring on `vc707-sdtest`:
+
+```
+CMUX(Y55) -> CO_B,CO_A(Y55) -> Y57_M_A(LUT) -> AMUX(Y59)
+          -> CO_D..CO_A(Y58) -> back to CMUX(Y55)
+```
+
+Every edge checks out: the pips are in the FASM, Y59 takes `PRECYINIT.CIN`
+from Y58, and Y57's LUT genuinely depends on the input that closes it
+(`INIT=0f0f0f0faaaa00aa`, reached through a `BYP_BOUNCE`). So it is either a
+real ring in nextpnr's routing -- which the board disproves, since the design
+reads a block -- or an extraction fault further up that ring. Unresolved, but
+visible now rather than silent, and reduced to nine named nets.
+
+## Cautions for whoever picks this up
+
+Three mistakes made here, all of the same kind -- a tool answering a slightly
+different question than the one asked:
+
+- `grep -o` counts a module name and a same-spelled instance name as two cells.
+  That is what made 5 IDDRs look like 6.
+- `grep 'assign X ='` does not find a net driven by an instance PORT, or one
+  tied by `wire X = 1'b0;`. Reading either as "no driver" sends you hunting for
+  a missing driver that is not missing.
+- A non-greedy regex spanning `xcol #(...) \NAME (...)` will happily start at
+  an earlier instance's header and report another cell's parameters. It said
+  `OUTMUX=none` where the FASM plainly said `COUTMUX.XOR`. Parse by finding the
+  instance and walking back to its own header.
+
+When the netlist and the checker disagree, instrument the checker. Hand-tracing
+established the netlist was right four separate times without ever explaining
+the difference; a six-line warning found it immediately.
