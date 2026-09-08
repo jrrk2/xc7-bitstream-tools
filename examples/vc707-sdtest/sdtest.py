@@ -103,8 +103,13 @@ class SDTest(LiteXModule):
             self.crg = _CRG(platform, sys_clk_freq)
 
         pads = platform.request("sdcard")
+        # LiteX's add_sdcard uses 1.0 s timeouts, which is 50 million cycles at
+        # 50 MHz -- fine on hardware, useless in simulation, where waiting one
+        # simulated second for a command that gets no reply looks exactly like a
+        # hung state machine.  A millisecond is still thousands of SD clocks.
+        timeout = 1e-3 if sim else 10e-1
         self.phy  = phy  = SDPHY(pads, platform.device, sys_clk_freq,
-                                 cmd_timeout=10e-1, data_timeout=10e-1)
+                                 cmd_timeout=timeout, data_timeout=timeout)
         self.core = core = SDCore(phy)
 
         # The core's CSRs are never collected into a bank here -- this is a
