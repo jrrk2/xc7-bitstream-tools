@@ -49,6 +49,10 @@ DESIGNS=(
   # distributed RAM and carry chains throughout.  It was blocked until the tile
   # model learned to cut a block RAM at its boundary; it proves now, with the
   # yosys this repository pins.
+  # The SERV SoC WITH the SD card -- the design that works under Vivado and
+  # fails through the open flow.  The no-SD control beside it proves 2820/0,
+  # so the two together isolate the SD block exactly.
+  "vc707-serv-sd|examples/vc707-litex/build-serv-sd/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|"
   # A gated counter with a comparison: the shape of the SD test's PHY-init
   # delay and nothing else, written to isolate the one cluster that design
   # still differs on -- a carry chain whose CYINIT comes from the fabric.
