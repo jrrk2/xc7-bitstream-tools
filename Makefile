@@ -1,4 +1,4 @@
-.PHONY: vc707-serv-sd vc707-serv-sd-flash vc707-litex-ddr-ethmin-smpsd help setup litex-deps prjxray-db tftp-serve tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: vc707-serv-sd-vivado vc707-serv-sd vc707-serv-sd-flash vc707-litex-ddr-ethmin-smpsd help setup litex-deps prjxray-db tftp-serve tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 # Values that are properties of a machine rather than of the project --
@@ -324,6 +324,22 @@ vc707-serv-sd: fasm2netlist nextpnr
 		--db $(PRJXRAY_DB) --fasm $(SERVSD_DIR)/gateware/$(LITEX_TOP).fasm \
 		--output $(SERVSD_OUT)
 	@echo "built $(SERVSD_OUT) -- flash with 'make vc707-serv-sd-flash'"
+
+# The same tiny SoC through Vivado, as the reference to diff against.  Both
+# flows on one small design is a far better discriminator than comparing the
+# open flow's SERV build against Vivado's much larger SMP one: the only
+# difference left is the implementation, so any FASM difference is a real
+# defect rather than a consequence of different logic.
+SERVSD_VIVADO_DIR ?= $(LITEX_DIR)/build-serv-sd-vivado
+
+vc707-serv-sd-vivado:
+	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
+	rm -rf $(SERVSD_VIVADO_DIR)
+	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
+		--with-led-chaser --cpu-type serv --integrated-main-ram-size 0x4000 \
+		--with-sdcard --flow vivado --build \
+		--output-dir $(SERVSD_VIVADO_DIR)
+	@echo "built $(SERVSD_VIVADO_DIR)/gateware/$(LITEX_TOP).bit"
 
 vc707-serv-sd-flash:
 	@test -f $(SERVSD_OUT) || { echo "no $(SERVSD_OUT); run 'make vc707-serv-sd' first"; exit 2; }
