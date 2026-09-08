@@ -141,6 +141,12 @@ LINUX_IMAGES   ?=
 # directory is named for the SoC's MAC because scripts/tftp_serve.py dispatches
 # on it; see examples/vc707-litex-linux/README.md.
 LINUX_TFTP_DIR ?= $(HOME)/tftp-vc707/10:e2:d5:00:00:07
+# Root over NFS, for development: the rootfs stops being a cpio rebuilt and
+# re-sent for every change and becomes a directory on the host, edited in
+# place.  NFS_SERVER is this machine as the board sees it.
+NFS_ROOT       ?= $(HOME)/vc707-nfsroot
+NFS_SERVER     ?= 192.168.1.106
+NFS_BOARD_IP   ?= 192.168.1.50
 
 # The address the BIOS network-boots FROM, compiled into the gateware.  It is
 # the machine SERVING TFTP, which is not necessarily this one: the board's
@@ -667,6 +673,29 @@ vc707-litex-linux-payload: vc707-litex-linux-emulator
 		--csr $(LINUX_BUILD)/csr.json --images $(LINUX_IMAGES) \
 		--out "$(LINUX_TFTP_DIR)"
 	@echo "payload staged in $(LINUX_TFTP_DIR)"
+
+# Stage the same kernel and dtb, but with root on NFS instead of the initramfs.
+# rootfs.cpio is not sent at all, so netboot moves ~4 MB less and a change to
+# the root filesystem needs no rebuild of anything -- edit $(NFS_ROOT) and
+# reboot the board.
+#
+# The export itself needs root, once: sudo scripts/nfsroot_setup.sh
+vc707-litex-linux-nfsroot: vc707-litex-linux-emulator
+	@test -n "$(LINUX_IMAGES)" && test -f "$(LINUX_IMAGES)/Image" || { \
+	  echo "LINUX_IMAGES must name a directory holding an rv32ima Image:"; \
+	  echo "  make vc707-litex-linux-nfsroot LINUX_IMAGES=/path/to/buildroot/images"; exit 2; }
+	@test -d "$(NFS_ROOT)/sbin" || { \
+	  echo "$(NFS_ROOT) does not look like a root filesystem -- run first:"; \
+	  echo "  sudo scripts/nfsroot_setup.sh $(NFS_ROOT) $(LINUX_IMAGES)/rootfs.tar $(NFS_BOARD_IP)"; exit 2; }
+	mkdir -p "$(LINUX_TFTP_DIR)"
+	cp $(LINUX_IMAGES)/Image "$(LINUX_TFTP_DIR)/"
+	cp $(LINUX_DIR)/emulator/emulator.bin "$(LINUX_TFTP_DIR)/"
+	rm -f "$(LINUX_TFTP_DIR)/rootfs.cpio"
+	$(PYTHON) scripts/linux_payload.py --dts $(LINUX_DIR)/rv32.dts \
+		--csr $(LINUX_BUILD)/csr.json --images $(LINUX_IMAGES) \
+		--nfsroot $(NFS_SERVER):$(NFS_ROOT) --ip $(NFS_BOARD_IP) \
+		--out "$(LINUX_TFTP_DIR)"
+	@echo "NFS-root payload staged in $(LINUX_TFTP_DIR)"
 
 # The board network-boots from this; it dispatches on the requesting MAC so
 # several boards can be served their own payload from one directory.  Runs in

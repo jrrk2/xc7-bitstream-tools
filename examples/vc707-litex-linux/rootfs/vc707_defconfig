@@ -76,6 +76,13 @@ BR2_PACKAGE_BUSYBOX_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/.
 # is for throughput once they are.
 BR2_PACKAGE_IPERF3=y
 
+# CoreMark: a CPU number for this SoC that can be compared with published
+# ones, which iperf3 (a network measurement) cannot give.  Small, self
+# contained, and it runs from the NFS root without anything else installed.
+# Report it with the compiler flags and the clock rate beside it -- a bare
+# CoreMark score means nothing on its own.
+BR2_PACKAGE_COREMARK=y
+
 # Dropbear gives us sshd (and dbclient) in a fraction of openssh's size,
 # which matters in an initramfs that has to fit in RAM alongside the
 # kernel.  Dropbear refuses to authenticate an account with an empty
