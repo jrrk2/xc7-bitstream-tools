@@ -1,4 +1,4 @@
-.PHONY: vc707-serv-sd-vivado vc707-serv-sd vc707-serv-sd-flash vc707-litex-ddr-ethmin-smpsd help setup litex-deps prjxray-db tftp-serve tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: vc707-serv-sdc vc707-serv-sdc-flash vc707-serv-sd-vivado vc707-serv-sd vc707-serv-sd-flash vc707-litex-ddr-ethmin-smpsd help setup litex-deps prjxray-db tftp-serve tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 # Values that are properties of a machine rather than of the project --
@@ -340,6 +340,44 @@ vc707-serv-sd-vivado:
 		--with-sdcard --flow vivado --build \
 		--output-dir $(SERVSD_VIVADO_DIR)
 	@echo "built $(SERVSD_VIVADO_DIR)/gateware/$(LITEX_TOP).bit"
+
+# The same SERV SoC with the mczerski SD controller instead of LiteSDCard.
+# Its pads are plain IOBUFs with no IDDR, so unlike the LiteSDCard build this
+# one can be put through verify-extraction: tileverilog models ILOGIC as a
+# bypass and drops anything else, which is why the LiteSDCard design reports
+# 1275 differences that say nothing.
+SERVSDC_DIR ?= $(LITEX_DIR)/build-serv-sdc
+SERVSDC_OUT ?= litex_serv_sdc_vc707.bit
+SDC_RTL     ?= $(CURDIR)/rtl-deps/sd-card-controller/rtl/verilog
+
+vc707-serv-sdc: fasm2netlist nextpnr
+	@scripts/pinned_yosys.sh >/dev/null
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
+	@test -f $(SDC_RTL)/sdc_controller.v || { \
+	  echo "rtl-deps/sd-card-controller is empty; run: git submodule update --init rtl-deps/sd-card-controller"; exit 2; }
+	rm -rf $(SERVSDC_DIR)
+	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
+		--with-led-chaser --cpu-type serv --integrated-main-ram-size 0x4000 \
+		--with-sdc --flow openXC7 --no-compile-gateware --build \
+		--output-dir $(SERVSDC_DIR)
+	cd $(SERVSDC_DIR)/gateware && $(PINNED_YOSYS) -q -p \
+		'read_verilog -I$(SDC_RTL) $(SDC_RTL)/*.v; synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+		$(SERV_RTL)/*.v $(LITEX_TOP).v
+	$(NEXTPNR_BIN) --device $(LITEX_PART) \
+		-o xdc=$(SERVSDC_DIR)/gateware/$(LITEX_TOP).xdc \
+		--json $(SERVSDC_DIR)/gateware/$(LITEX_TOP).json \
+		-o fasm=$(SERVSDC_DIR)/gateware/$(LITEX_TOP).fasm \
+		-o placement=$(SERVSDC_DIR)/gateware/$(LITEX_TOP)_placement.json \
+		--router router2 $(NEXTPNR_FLAGS)
+	$(MAKE) check-fasm FASM=$(SERVSDC_DIR)/gateware/$(LITEX_TOP).fasm PRJXRAY_DB=$(PRJXRAY_DB)
+	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 --part $(LITEX_PART) \
+		--db $(PRJXRAY_DB) --fasm $(SERVSDC_DIR)/gateware/$(LITEX_TOP).fasm \
+		--output $(SERVSDC_OUT)
+	@echo "built $(SERVSDC_OUT)"
+
+vc707-serv-sdc-flash:
+	@test -f $(SERVSDC_OUT) || { echo "no $(SERVSDC_OUT); run 'make vc707-serv-sdc' first"; exit 2; }
+	$(OFL) --cable digilent --freq 15000000 $(SERVSDC_OUT)
 
 vc707-serv-sd-flash:
 	@test -f $(SERVSD_OUT) || { echo "no $(SERVSD_OUT); run 'make vc707-serv-sd' first"; exit 2; }

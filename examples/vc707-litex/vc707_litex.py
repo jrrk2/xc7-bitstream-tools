@@ -279,6 +279,7 @@ class BaseSoC(SoCCore):
     def __init__(self, sys_clk_freq=SYS_CLK_FREQ, with_led_chaser=True,
                  with_ethernet=False, with_ethmin_phy=False, with_ddr=False,
                  with_sdcard=False, with_spi_sdcard=False, sdcard_debug=False,
+                 with_sdc=False,
                  flow="unknown",
                  local_ip=LOCAL_IP, remote_ip=REMOTE_IP,
                  mac_address=MAC_ADDRESS, tftp_port=TFTP_PORT, **kwargs):
@@ -501,6 +502,22 @@ class BaseSoC(SoCCore):
         if with_sdcard:
             self.add_sdcard(software_debug=sdcard_debug)
 
+        # The mczerski SD controller, as a discriminator against LiteSDCard --
+        # see examples/vc707-litex/sdc/sdc_controller.py for why.  It occupies
+        # the same four pins, so it is mutually exclusive with the others.
+        if with_sdc:
+            import sys
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            from sdc.sdc_controller import SDCController
+            rtl = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "..", "..", "rtl-deps", "sd-card-controller",
+                               "rtl", "verilog")
+            pads = platform.request("sdcard")
+            self.sdc = SDCController(platform, pads, os.path.normpath(rtl))
+            self.bus.add_slave("sdc", self.sdc.bus,
+                               SoCRegion(origin=0xb0000000, size=0x100, cached=False))
+            self.bus.add_master("sdc_dma", master=self.sdc.dma_bus)
+
         # SPI mode: clk AN30, mosi AP30 (the card's CMD), miso AR30 (DAT0),
         # cs_n AT30 (DAT3).  One data line instead of four, and no parallel
         # CRC -- which is the part that does not work on this board.  A CVA6
@@ -559,6 +576,11 @@ def main():
                                     "work -- but it adds a PHY, a core and two DMA masters to a "
                                     "design that only closes timing with a raised placer "
                                     "timing weight.")
+    parser.add_target_argument("--with-sdc", action="store_true",
+                               help="Use the mczerski SD-card-controller instead of "
+                                    "LiteSDCard: plain flip-flops at the pad rather "
+                                    "than IDDR, so the extraction proof can see the "
+                                    "data path.")
     parser.add_target_argument("--flow", default="unknown",
                                help="Name of the implementation flow this build is for; "
                                     "reported by the BIOS 'ident' command.")
@@ -575,6 +597,7 @@ def main():
         with_ethmin_phy=args.with_ethmin_phy,
         with_ddr=args.with_ddr,
         with_sdcard=args.with_sdcard,
+        with_sdc=args.with_sdc,
         with_spi_sdcard=args.with_spi_sdcard,
         sdcard_debug=args.sdcard_debug,
         local_ip=args.local_ip,
