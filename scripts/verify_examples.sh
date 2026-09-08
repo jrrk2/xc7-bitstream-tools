@@ -49,6 +49,10 @@ DESIGNS=(
   # distributed RAM and carry chains throughout.  It was blocked until the tile
   # model learned to cut a block RAM at its boundary; it proves now, with the
   # yosys this repository pins.
+  # A gated counter with a comparison: the shape of the SD test's PHY-init
+  # delay and nothing else, written to isolate the one cluster that design
+  # still differs on -- a carry chain whose CYINIT comes from the fabric.
+  "vc707-gatedcount|.|examples/vc707-gatedcount/top.v|top|examples/vc707-gatedcount/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|-nobram"
   # The minimal SD test: SDPHY and SDCore driven by a hardcoded FSM, no CPU
   # and no bus.  It exists to be small enough that a difference list can be
   # read line by line, and it is the first design here whose bitstream is
