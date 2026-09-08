@@ -84,3 +84,51 @@ core.  So this design validates the init path but not sustained reads.
 scripts are in the scratchpad; the console is /dev/ttyUSB2 at 115200.
 The BIOS line editor on a 25 MHz SERV drops characters if a whole line
 arrives at once -- send one token at a time with a pause between them.
+
+## The Z3 equivalence check, and why it cannot answer yet
+
+Jonathan's suggestion: compare the logic cones between the SD pins and
+the first register bank with Z3.  The repository already has the
+machinery -- verify-extraction pulls the netlist back out of the
+bitstream and lvs_equiv proves it against the synthesis, with the
+register correspondence taken from the placement rather than from names.
+
+    SERV + SD   3619 proved, 1275 differ
+    SERV only   2820 proved,    0 differ     (make verify-examples DESIGNS=vc707-litex)
+
+The control is exact: the same SoC without the SD card proves completely.
+But the 1275 differences are a false positive, and the extraction says so
+itself:
+
+    I/O logic: 8 pass-through added, 11 already hardwired,
+               10 doing more than a wire (not modelled)
+
+tileverilog.cpp models ILOGIC and OLOGIC only as a bypass; a site doing
+anything else is counted unmodelled_io and skipped.  The SD design is the
+first here to use IDDR -- five of them, on CMD and DAT[0..3], with five
+IOBUFs beside them -- and the proving control contains neither cell type.
+Dropping those ten sites disconnects the SD core's inputs, so every
+register downstream differs.  That is the whole SD block, which is
+exactly the shape the diff has.
+
+So the check cannot speak to the SD data path until the tile model learns
+ILOGIC in DDR mode.  That is the concrete next task, and it makes the
+cone comparison decisive rather than suggestive.
+
+## The I/O is now exonerated
+
+Every FASM difference between the two flows on the SD pads is accounted
+for:
+
+  IN_DIFF        tested three times, no effect
+  ZSRVAL         removed, no effect
+  ZINV_T1 on DAT removed, no effect
+  clock leaf     open uses GCLK0 where Vivado uses GCLK5 -- benign: the
+                 CMD pin uses GCLK0 too in the open build, and CMD works,
+                 so GCLK0 carries sys_clk correctly
+  detect pin     carries no signal in either flow
+
+Nothing about the pad or IOI configuration distinguishes the two builds
+in a way that survives testing, yet the data path still fails.  That
+points into the fabric, which is where the equivalence check would look
+-- once it can see it.
