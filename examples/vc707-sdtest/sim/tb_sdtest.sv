@@ -54,7 +54,7 @@ module tb_sdtest;
     wire [2:0] stop = led[6:4];
     reg  [3:0] step_seen = 0;
 
-    always @(posedge sys_clk) begin
+    always @(negedge sys_clk) begin
         if (step != step_seen) begin
             $display("[%8t] step %0d", $time, step);
             step_seen <= step;
@@ -71,19 +71,28 @@ module tb_sdtest;
     end
 
     initial begin
-        if ($test$plusargs("vcd")) begin
+        if (1) begin
             $dumpfile("tb_sdtest.vcd");
             $dumpvars(0, tb_sdtest);
         end
-        repeat (20) @(posedge sys_clk);
-        sys_rst <= 0;
+        // Hold reset long enough to be sure every domain has seen it, then
+        // watch the first cycles rather than sampling every millisecond: a
+        // machine that never starts and one that starts and stops look the
+        // same from far away.
+        repeat (10) @(posedge sys_clk);
+        @(negedge sys_clk) sys_rst <= 0;
+        repeat (12) begin
+            @(negedge sys_clk);
+            $display("[%8t] rst=%b state=%0d next=%0d step=%0d",
+                     $time, sys_rst, dut.fsm_state, dut.fsm_next_state, step);
+        end
         // Periodic state dump: a silent run tells you nothing about whether
         // the FSM is stuck, the clock is dead, or the card never answers.
         fork
             forever begin
                 #1_000_000;
                 $display("[%8t] rst=%b led=%b beat=%0d fsm=%0d cmd=%b",
-                         $time, sys_rst, led, dut.sdtest_beat, dut.fsm_state, sd_cmd);
+                         $time, sys_rst, led, dut.sdtest_beat, dut.fsm_state, sd_cmd); $display("            next=%0d rst1=%b clk1=%b", dut.fsm_next_state, dut.sys_rst_1, dut.sys_clk_1); $display("            state=%b next=%b", dut.fsm_state, dut.fsm_next_state);
             end
         join_none
         #20_000_000;                     // 20 ms: ACMD41 alone can take a while
