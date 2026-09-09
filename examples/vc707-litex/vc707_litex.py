@@ -47,6 +47,7 @@ from migen.genlib.resetsync import AsyncResetSynchronizer
 
 from litex.gen import *
 
+from litex.soc.interconnect.csr import CSRStorage, CSRStatus, CSRField
 from litex.build.generic_platform import Subsignal, Pins, IOStandard, Misc
 from litex_boards.platforms import xilinx_vc707
 
@@ -265,28 +266,31 @@ class EthminSGMIIPHY(LiteXModule):
 
     def __init__(self, platform, refclk_pads, data_pads):
         from liteeth.phy.gmii import LiteEthPHYGMIITX, LiteEthPHYGMIIRX
-        from liteeth.phy.common import LiteEthPHYMDIO
-
-        # An MDIO block wired to nothing.  1000BASE-X autonegotiation brings
-        # this link up without management access, so there is no register to
-        # read -- but a PHY with no CSRs at all registers no `ethphy` bank,
-        # and litex_json2dts_linux only emits a MAC node when it finds BOTH
+        # An MDIO register block wired to nothing.  1000BASE-X autonegotiation
+        # brings this link up without management access, so there is nothing
+        # to read -- but a PHY with no CSRs registers no `ethphy` bank, and
+        # litex_json2dts_linux only emits a MAC node when it finds BOTH
         # `ethmac` and `ethphy`.  Without it the device tree has no ethernet
-        # and the board cannot mount an NFS root, which is a long way to be
-        # led by a missing register block.
+        # and the board cannot mount an NFS root.
         #
-        # Its pads are plain signals, not pins.  The real mdio pad (AK33)
-        # shares an IOB tile with eth_rst_n and the two cannot both be
-        # inputs -- see the note where those are driven -- and this block
-        # puts a Tristate on whatever it is given, so giving it the pin
-        # would reintroduce exactly that problem.
-        class _MDIOPads:
-            pass
-
-        mdio_pads      = _MDIOPads()
-        mdio_pads.mdc  = Signal()
-        mdio_pads.mdio = Signal()
-        self.mdio      = LiteEthPHYMDIO(mdio_pads)
+        # The registers are declared here rather than by using LiteEthPHYMDIO,
+        # which puts a migen Tristate on its pads -- and the Xilinx platform
+        # lowers ANY Tristate to an IOBUF, pad or not.  Given plain signals it
+        # still builds one, with nothing to place it on, and Vivado stops with
+        # "IOBUF_64/IBUF is unplaced after IO placer".  Counting top-level
+        # ports does not catch that; the buffer is not a port.
+        #
+        # The layout matches LiteEthPHYMDIO's exactly, because the device tree
+        # describes this bank as 0x0a bytes at the ethphy base and the driver
+        # reads it accordingly.
+        self._w = CSRStorage(fields=[
+            CSRField("mdc", size=1, description="MDIO clock (not wired)."),
+            CSRField("oe",  size=1, description="MDIO output enable (not wired)."),
+            CSRField("w",   size=1, description="MDIO write data (not wired).")],
+            name="w")
+        self._r = CSRStatus(fields=[
+            CSRField("r", size=1, description="MDIO read data; always 0.")],
+            name="r")
 
         # The GMII side, in the shape LiteEth's datapath expects of "pads".
         class _GMIIPads:

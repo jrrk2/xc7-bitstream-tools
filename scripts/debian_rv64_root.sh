@@ -21,7 +21,10 @@ MIRROR=http://deb.debian.org/debian
 command -v debootstrap >/dev/null || { echo "debootstrap not installed"; exit 2; }
 QEMU=$(command -v qemu-riscv64-static) || { echo "qemu-riscv64-static not installed"; exit 2; }
 
-PKGS=ifupdown,iproute2,net-tools,ca-certificates,openssh-server,nfs-common,gcc,make,file,less,vim-tiny
+# systemd-sysv provides /sbin/init -> systemd.  minbase does not pull
+# it in, and without it the kernel finds no init and falls through to
+# /bin/sh, which looks like a rootfs problem and is a packaging one.
+PKGS=systemd-sysv,ifupdown,iproute2,net-tools,ca-certificates,openssh-server,nfs-common,gcc,make,file,less,vim-tiny
 
 echo "== first stage: $SUITE/riscv64 -> $EXPORT"
 # --foreign stops after unpacking, because the maintainer scripts are riscv64
