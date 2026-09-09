@@ -253,7 +253,8 @@ vc707-litex: fasm2netlist nextpnr
 # discovers the dependencies one failure at a time.
 LITEX_PKGS = migen litex litex-boards liteeth litedram litesdcard \
              pythondata-cpu-serv pythondata-cpu-vexriscv \
-             pythondata-software-picolibc pythondata-software-compiler_rt
+             pythondata-software-picolibc pythondata-software-compiler_rt \
+             pythondata-cpu-rocket
 
 # The segbits database, pinned.  Not a submodule because it is not this
 # project's to carry, but pinned all the same -- see scripts/prjxray_db.sh for

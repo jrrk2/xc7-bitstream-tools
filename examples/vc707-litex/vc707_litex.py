@@ -47,6 +47,7 @@ from migen.genlib.resetsync import AsyncResetSynchronizer
 
 from litex.gen import *
 
+from litex.build.generic_platform import Subsignal, Pins, IOStandard, Misc
 from litex_boards.platforms import xilinx_vc707
 
 from litex.soc.integration.soc import *
@@ -152,6 +153,52 @@ class _CRG(LiteXModule):
         platform.add_period_constraint(self.cd_sys.clk, 1e9 / sys_clk_freq)
 
 
+# The DDR3 SODIMM is 64 bits wide and 1 GB; litex-boards declares only the
+# lower 32 DQ, which halves both the capacity LiteDRAM computes and the peak
+# bandwidth.  The upper four byte lanes are taken from Vivado's own VC707
+# board definition (data/boards/board_files/vc707/1.4/mig.prj, DataWidth=64)
+# rather than guessed -- its lower four lanes reproduce the litex-boards
+# pinout exactly, which is what says the upper four can be trusted.
+#
+# Declared here as an extension so the litex-boards submodule stays as
+# upstream has it, and a 32-bit build remains available for comparison.
+_ddram64_io = [
+    ("ddram64", 0,
+        Subsignal("a", Pins(
+            "A20 B19 C20 A19 A17 A16 D20 C18",
+            "D17 C19 B21 B17 A15 A21 F17 E17"),
+            IOStandard("SSTL15")),
+        Subsignal("ba",      Pins("D21 C21 D18"), IOStandard("SSTL15")),
+        Subsignal("ras_n",   Pins("E20"), IOStandard("SSTL15")),
+        Subsignal("cas_n",   Pins("K17"), IOStandard("SSTL15")),
+        Subsignal("we_n",    Pins("F20"), IOStandard("SSTL15")),
+        Subsignal("cs_n",    Pins("J17"), IOStandard("SSTL15")),
+        Subsignal("dm",      Pins("M13 K15 F12 A14 C23 D25 C31 F31"),
+            IOStandard("SSTL15")),
+        Subsignal("dq",      Pins(
+            "N14 N13 L14 M14 M12 N15 M11 L12",
+            "K14 K13 H13 J13 L16 L15 H14 J15",
+            "E15 E13 F15 E14 G13 G12 F14 G14",
+            "B14 C13 B16 D15 D13 E12 C16 D16",
+            "A24 B23 B27 B26 A22 B22 A25 C24",
+            "E24 D23 D26 C25 E23 D22 F22 E22",
+            "A30 D27 A29 C28 D28 B31 A31 A32",
+            "E30 F29 F30 F27 C30 E29 F26 D30"),
+            IOStandard("SSTL15_T_DCI")),
+        Subsignal("dqs_p",   Pins("N16 K12 H16 C15 A26 F25 B28 E27"),
+            IOStandard("DIFF_SSTL15")),
+        Subsignal("dqs_n",   Pins("M16 J12 G16 C14 A27 E25 B29 E28"),
+            IOStandard("DIFF_SSTL15")),
+        Subsignal("clk_p",   Pins("H19"), IOStandard("DIFF_SSTL15")),
+        Subsignal("clk_n",   Pins("G18"), IOStandard("DIFF_SSTL15")),
+        Subsignal("cke",     Pins("K19"), IOStandard("SSTL15")),
+        Subsignal("odt",     Pins("H20"), IOStandard("SSTL15")),
+        Subsignal("reset_n", Pins("C29"), IOStandard("LVCMOS15")),
+        Misc("SLEW=FAST"),
+        Misc("VCCAUX_IO=HIGH"),
+    ),
+]
+
 class _CRGDDR(LiteXModule):
     """The clock generator the DDR3 PHY needs, which the one above cannot be.
 
@@ -218,6 +265,28 @@ class EthminSGMIIPHY(LiteXModule):
 
     def __init__(self, platform, refclk_pads, data_pads):
         from liteeth.phy.gmii import LiteEthPHYGMIITX, LiteEthPHYGMIIRX
+        from liteeth.phy.common import LiteEthPHYMDIO
+
+        # An MDIO block wired to nothing.  1000BASE-X autonegotiation brings
+        # this link up without management access, so there is no register to
+        # read -- but a PHY with no CSRs at all registers no `ethphy` bank,
+        # and litex_json2dts_linux only emits a MAC node when it finds BOTH
+        # `ethmac` and `ethphy`.  Without it the device tree has no ethernet
+        # and the board cannot mount an NFS root, which is a long way to be
+        # led by a missing register block.
+        #
+        # Its pads are plain signals, not pins.  The real mdio pad (AK33)
+        # shares an IOB tile with eth_rst_n and the two cannot both be
+        # inputs -- see the note where those are driven -- and this block
+        # puts a Tristate on whatever it is given, so giving it the pin
+        # would reintroduce exactly that problem.
+        class _MDIOPads:
+            pass
+
+        mdio_pads      = _MDIOPads()
+        mdio_pads.mdc  = Signal()
+        mdio_pads.mdio = Signal()
+        self.mdio      = LiteEthPHYMDIO(mdio_pads)
 
         # The GMII side, in the shape LiteEth's datapath expects of "pads".
         class _GMIIPads:
@@ -282,7 +351,8 @@ class BaseSoC(SoCCore):
                  with_sdc=False,
                  flow="unknown",
                  local_ip=LOCAL_IP, remote_ip=REMOTE_IP,
-                 mac_address=MAC_ADDRESS, tftp_port=TFTP_PORT, **kwargs):
+                 mac_address=MAC_ADDRESS, tftp_port=TFTP_PORT,
+                 with_ddr64=False, **kwargs):
         platform = xilinx_vc707.Platform()
 
         self.crg = _CRGDDR(platform, sys_clk_freq) if with_ddr \
@@ -339,10 +409,17 @@ class BaseSoC(SoCCore):
                     "--with-ddr and --integrated-main-ram-size are alternatives: "
                     "the SoC takes its main RAM from one or the other")
 
-            self.ddrphy = s7ddrphy.V7DDRPHY(platform.request("ddram"),
-                                            memtype      = "DDR3",
-                                            nphases      = 4,
-                                            sys_clk_freq = sys_clk_freq)
+            # 64 bits of the SODIMM rather than 32: twice the peak bandwidth
+            # and the whole 1 GB, since LiteDRAM computes capacity from the
+            # module geometry AND the width the PHY presents.  The narrow
+            # build stays available so the two can be compared.
+            if with_ddr64:
+                platform.add_extension(_ddram64_io)
+            self.ddrphy = s7ddrphy.V7DDRPHY(
+                platform.request("ddram64" if with_ddr64 else "ddram"),
+                memtype      = "DDR3",
+                nphases      = 4,
+                sys_clk_freq = sys_clk_freq)
             self.add_sdram("sdram",
                            phy           = self.ddrphy,
                            module        = MT8JTF12864(sys_clk_freq, "1:4"),
@@ -581,6 +658,10 @@ def main():
                                     "LiteSDCard: plain flip-flops at the pad rather "
                                     "than IDDR, so the extraction proof can see the "
                                     "data path.")
+    parser.add_target_argument("--with-ddr64", action="store_true",
+                               help="Use all 64 DQ of the DDR3 SODIMM: 1 GB rather "
+                                    "than 512 MB, and twice the peak bandwidth. "
+                                    "Needs --with-ddr.")
     parser.add_target_argument("--flow", default="unknown",
                                help="Name of the implementation flow this build is for; "
                                     "reported by the BIOS 'ident' command.")
@@ -593,6 +674,7 @@ def main():
     soc = BaseSoC(
         sys_clk_freq=sys_clk_freq,
         with_led_chaser=args.with_led_chaser,
+        with_ddr64=args.with_ddr64,
         with_ethernet=args.with_ethernet,
         with_ethmin_phy=args.with_ethmin_phy,
         with_ddr=args.with_ddr,

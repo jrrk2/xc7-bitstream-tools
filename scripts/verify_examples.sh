@@ -100,6 +100,12 @@ BLOCKED=(
   # Vivado put them -- and fails in the router: a BUFH drives one clock region
   # and nothing confines its loads to it.  Vivado uses pblocks for that, which
   # is region-constrained placement rather than a constraint to copy over.
+  # The SMP+SD SoC in service: VexRiscv-SMP, DDR3, LiteEth and an SD card,
+  # the design that boots Linux over NFS root with gcc on it.  It is the
+  # largest thing here, and it synthesises and packs -- what stops it is
+  # the placer, on the same 125 MHz ethernet transmit clock that blocks
+  # vc707-litex-eth.  Vivado meets it on the identical netlist.
+  "vc707-smpsd|examples/vc707-litex-ddr-ethmin/build-smpsd-openXC7/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|pnr|eth_tx_clk|nextpnr reaches 97.3 MHz on eth_tx_clk against the 125 MHz the SGMII PHY needs; Vivado meets it on the same netlist, so the deficit is placement"
   "vc707-litex-eth|examples/vc707-litex-eth/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|pnr|Failed to route arc|the LiteEth PHY packs and places -- transceiver, both PHY MMCMs and every clock buffer where Vivado put them -- and does not route. The clock buffers are BUFGs rather than BUFHs, so no clock-region confinement is needed; the router still cannot find a path from the transceiver's clock outputs and falls into an unbounded whole-device search. See examples/vc707-litex-eth/README.md"
   "vc707-ethmin|examples/vc707-ethmin|@sources.f|vc707_ethmin|vc707_ethmin.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|pnr|Hold/min time violation|nextpnr places and routes this SoC and then reports 18 hold-time violations, 14 of them on the MAC transmit path into a block RAM"
 )
