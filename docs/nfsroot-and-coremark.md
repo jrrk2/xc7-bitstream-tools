@@ -60,3 +60,57 @@ arrives anyway.
 
 `BR2_PACKAGE_COREMARK=y` is in `rootfs/vc707_defconfig`, so it survives a
 rebuild and a re-extract of the export.
+
+## A native toolchain
+
+gcc 13.4.0 and g++ run on the board.  `BR2_PACKAGE_GCC_NATIVE=y`.
+
+Buildroot has no option for this -- `package/gcc` builds the CROSS compiler
+and `gcc-final`'s target install copies only runtime libraries -- so
+`package/gcc-native` Canadian-crosses it: built here, running on the target,
+emitting target code, which is the shape `package/binutils` already uses to
+put `as` and `ld` on the board.  Only the compiler proper is built; libgcc
+and libstdc++ are already there from the identical version.
+
+    time gcc hello.c     14.55s on the board (cached)
+                          0.04s cross-compiled on the host
+                           383x
+
+About what the hardware predicts: ~40x on clock alone, the rest
+microarchitecture.  20% of it is sys time -- process creation and page
+faults across cc1/as/collect2/ld -- so a larger file scales better than the
+ratio suggests.  Cross-compiling stays the default for real work.
+
+### Four things this needed, none of them obvious
+
+**The rootfs went from 6 MB to 210 MB**, and rootfs.cpio to 195 MB, which
+would be hopeless as an initramfs in 512 MB of DDR3.  NFS root is not a
+convenience here, it is what makes a native toolchain possible at all.
+
+**BR2_INSTALL_LIBSTDCPP is not settable.**  It is a bool with no prompt,
+selected by BR2_TOOLCHAIN_BUILDROOT_CXX.  Setting it in a defconfig is
+silently dropped, the toolchain rebuilds without C++, and gcc's configure
+dies with `CXX='no'` an hour later.  gcc-native now selects the right symbol
+so the package cannot be enabled without it.
+
+**target-finalize deletes the sysroot.**  It removes /usr/include and every
+*.a as a matter of course, reasonably enough for a target that does not
+compile.  Restoring them has to happen in BR2_ROOTFS_POST_BUILD_SCRIPT: a
+package install or a TARGET_FINALIZE_HOOK both run BEFORE the deletion.
+libc.so is a linker script naming libc_nonshared.a by absolute path, so the
+link fails without a library nothing appears to reference.  The C++ headers
+are not in staging at all -- they live in the cross toolchain's own sysroot,
+host/<tuple>/include/c++.
+
+**An empty --with-arch does not fail, it picks the wrong machine.**  The
+extraction used `:=`, which expands when the .mk is PARSED, before TARGET_CC
+exists; it produced an empty string, buildroot's `ifneq` guard skipped the
+flag, and gcc fell back to its riscv32 default of rv32imafdc/ilp32d -- hard
+float double, on a soft-float rv32ima CPU, linked against a loader that does
+not exist on the board.  None of that is visible in the compiler binary:
+`file` reports a correct riscv32 executable, and only the code it emits is
+wrong.  It surfaced when something first tried to link.
+
+Now deferred with `=`, and a pre-configure hook prints the target and
+refuses to build if it cannot determine it.  A wrong answer that looks like
+success is worth failing loudly for.

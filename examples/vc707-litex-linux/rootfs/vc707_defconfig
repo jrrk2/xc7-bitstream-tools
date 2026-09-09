@@ -83,6 +83,27 @@ BR2_PACKAGE_IPERF3=y
 # CoreMark score means nothing on its own.
 BR2_PACKAGE_COREMARK=y
 
+# A native toolchain on the board.  tcc was the answer when the target had
+# 8 MB of RAM; with 512 MB of DDR3 and the root filesystem on NFS rather
+# than an initramfs competing for that RAM, neither size nor space is the
+# constraint any more, so this is a real gcc instead.
+#
+# Buildroot has no native-gcc option -- gcc-final's target install copies
+# only the runtime libraries -- so package/gcc-native Canadian-crosses it,
+# the same shape binutils already uses to put as and ld on the target.
+# gcc has been written in C++ since 4.8, so a native gcc needs a C++ cross
+# compiler to build it -- and a board that compiles its own code wants C++
+# on it regardless.  This changes the toolchain, so it forces a full
+# rebuild of the rootfs; the working images are kept in
+# ~/vc707-artifacts/pre-cxx-rootfs in case this needs backing out.
+BR2_TOOLCHAIN_BUILDROOT_CXX=y
+BR2_PACKAGE_BINUTILS=y
+BR2_PACKAGE_BINUTILS_TARGET=y
+BR2_PACKAGE_GMP=y
+BR2_PACKAGE_MPFR=y
+BR2_PACKAGE_MPC=y
+BR2_PACKAGE_GCC_NATIVE=y
+
 # Dropbear gives us sshd (and dbclient) in a fraction of openssh's size,
 # which matters in an initramfs that has to fit in RAM alongside the
 # kernel.  Dropbear refuses to authenticate an account with an empty
