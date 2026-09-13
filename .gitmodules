@@ -73,3 +73,6 @@
 [submodule "litex-deps/pythondata-cpu-rocket"]
 	path = litex-deps/pythondata-cpu-rocket
 	url = https://github.com/litex-hub/pythondata-cpu-rocket
+[submodule "System-Verilog-suite"]
+	path = System-Verilog-suite
+	url = https://github.com/jrrk2/System-Verilog-suite.git
