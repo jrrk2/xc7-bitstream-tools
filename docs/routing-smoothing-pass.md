@@ -118,3 +118,46 @@ the reference for how much headroom exists (182,950 pips, max 113).
   - Run time.  Rip-up and re-route with an accept/reject guard is a routing
     pass in its own right; it belongs behind a flag, off by default, until it
     has shown it pays for itself.
+
+## Status: implemented behind a flag, NOT yet working
+
+    --router2-smooth-iters N     (0 = off, the default)
+    --router2-smooth-weight W    (default 1.0)
+
+The density term, the occupancy map, the hot-tile selection, the criticality
+and fanout guards, the legality recovery and the before/after reporting are
+all in `common/route/router2.cc`.  With the flag off the routed result is
+BIT-IDENTICAL to before the change -- verified on vc707-johnson, same FASM,
+same 455.17 MHz -- so nothing is at risk by default.
+
+With the flag on it aborts:
+
+    Info: Smoothing congestion: 102 tiles, mean 8.8, p95 64, max 126, 898 pips
+    ERROR: Failed to route arc 0.0 of net 'core.prbs[19]',
+           from X79Y221/SLICE_X1Y0.A5FF_Q to X79Y221/SLICE_X1Y0.A4
+
+`route_net()` cannot rebuild every arc it is asked to.  That one is a
+flip-flop output going back into a LUT input in the SAME slice: a path the
+general search does not find, because it was established by the packer and
+the router's own site handling rather than by search.  Ripping it up destroys
+something that cannot be recreated, and the failure is a `log_error`, so it
+takes the whole run with it.
+
+Three filters were tried and none is the right answer: excluding globals
+(`NetInfo::is_global` does not exist on this arch), capping fanout (the
+johnson clock has 25 sinks), and skipping degenerate arc bounding boxes (the
+arc bb carries the router's search margin, so an intra-slice arc's box is not
+degenerate).  Each is a guess at a class that is not cleanly identifiable
+from outside.
+
+WHAT IT ACTUALLY NEEDS is snapshot and restore, which is also what the design
+above already asks for in step 5 and what makes the accept/reject guard
+possible at all: record the net's `wires` before rip-up, attempt the
+re-route, and on failure OR on a worse result re-bind the original pips
+through `bind_pip_internal`.  Then an unroutable arc is a rejected move
+rather than a dead run, and the pass can be judged on whether it improves
+p95 and fmax instead of on whether it survives.
+
+The clock exclusion earned its place regardless: ripping up a clock fails
+every time, and the driver-bel-type test is the portable way to recognise
+one.
