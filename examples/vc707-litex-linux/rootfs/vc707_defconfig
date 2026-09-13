@@ -104,6 +104,15 @@ BR2_PACKAGE_MPFR=y
 BR2_PACKAGE_MPC=y
 BR2_PACKAGE_GCC_NATIVE=y
 
+# A native gcc without make is only half a toolchain: every source tree worth
+# building on the target ships a Makefile, CoreMark included -- its whole
+# build is linux/core_portme.mak, and without make the alternative is
+# retyping the compiler line by hand and hoping it matches the flags the
+# benchmark reports.  Which matters here: comparing a score from one board
+# against another is only meaningful if both were built the same way, and
+# building on each target is how that is guaranteed.
+BR2_PACKAGE_MAKE=y
+
 # Dropbear gives us sshd (and dbclient) in a fraction of openssh's size,
 # which matters in an initramfs that has to fit in RAM alongside the
 # kernel.  Dropbear refuses to authenticate an account with an empty
