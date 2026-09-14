@@ -119,45 +119,143 @@ the reference for how much headroom exists (182,950 pips, max 113).
     pass in its own right; it belongs behind a flag, off by default, until it
     has shown it pays for itself.
 
-## Status: implemented behind a flag, NOT yet working
+## Status: implemented behind a flag, working, no measured gain yet
 
-    --router2-smooth-iters N     (0 = off, the default)
-    --router2-smooth-weight W    (default 1.0)
+    --router2-smooth-iters N       rounds (0 = off, the default)
+    --router2-smooth-weight W      how hard the density term pushes (default 1.0)
+    --router2-smooth-percentile P  occupancy percentile treated as hot (default 0.95)
+    --router2-smooth-max-crit C    leave nets at or above this criticality alone (default 0.8)
+    --router2-smooth-max-fanout N  leave nets with more sinks than this alone (default 32)
+    --router2-smooth-cap F         fraction of candidates to try per round (default 0.25)
+    --router2-smooth-min-wires N   skip nets held in fewer wires than this (default 8)
+    --router2-smooth-stagnant N    non-improving rounds to tolerate (default 0)
+
+The last six exist because the selection, not the cost weight, is what bounds
+this pass: on vc707-litex the defaults offer it 138 nets out of the whole
+design, and a quarter of those per round.
+
+A note on the float ones.  `Property` has constructors for `int64_t` and
+`std::string` and nothing else, so assigning a float to `ctx->settings[...]`
+converts silently to an integer: 0.75 became 0.  Every other float setting in
+`command.cc` wraps the value in `std::to_string` for exactly this reason, and
+`--router2-smooth-weight` did not -- it had been truncating to an integer
+since it was added, so any value below 1.0 was 0.  All four float settings now
+go through `std::to_string`.
 
 The density term, the occupancy map, the hot-tile selection, the criticality
-and fanout guards, the legality recovery and the before/after reporting are
-all in `common/route/router2.cc`.  With the flag off the routed result is
-BIT-IDENTICAL to before the change -- verified on vc707-johnson, same FASM,
-same 455.17 MHz -- so nothing is at risk by default.
+and fanout guards, snapshot and restore, the accept/reject test, the legality
+recovery and the before/after reporting are all in
+`common/route/router2.cc`.  With the flag off the pass returns immediately and
+the routed result is BIT-IDENTICAL to before the change -- verified on
+vc707-johnson -- so nothing is at risk by default.
 
-With the flag on it aborts:
+### Snapshot and restore
 
-    Info: Smoothing congestion: 102 tiles, mean 8.8, p95 64, max 126, 898 pips
-    ERROR: Failed to route arc 0.0 of net 'core.prbs[19]',
-           from X79Y221/SLICE_X1Y0.A5FF_Q to X79Y221/SLICE_X1Y0.A4
+Step 5 of the design above is what makes the rest safe, and it is now in.
 
-`route_net()` cannot rebuild every arc it is asked to.  That one is a
-flip-flop output going back into a LUT input in the SAME slice: a path the
-general search does not find, because it was established by the packer and
-the router's own site handling rather than by search.  Ripping it up destroys
-something that cannot be recreated, and the failure is a `log_error`, so it
-takes the whole run with it.
+`snapshot_net()` copies the net's `wires` map (wire -> uphill pip, plus the
+number of arcs sharing it) and each arc's `routed`/`pre_routed` flags.
+`restore_net()` rips the net back to nothing, drains any residue through
+`unbind_pip_internal()` so the per-wire congestion and per-resource counts
+fall together, then re-binds each saved pip through `bind_pip_internal()` as
+many times as it had arcs sharing it.  Going back in through the same two
+functions that built the state is what keeps `curr_cong`, `net.resources` and
+the global resource value counts consistent; restoring the maps by assignment
+would not.
 
-Three filters were tried and none is the right answer: excluding globals
-(`NetInfo::is_global` does not exist on this arch), capping fanout (the
-johnson clock has 25 sinks), and skipping degenerate arc bounding boxes (the
-arc bb carries the router's search margin, so an intra-slice arc's box is not
-degenerate).  Each is a guess at a class that is not cleanly identifiable
-from outside.
+A net the search cannot rebuild is reported by `route_net()` with
+`log_error()`, which *throws* (`log.cc:146`) rather than exiting.  Nothing
+hangs off that throw -- `log_error_atexit` is never installed in this tree --
+so the trial is wrapped in a `try`/`catch (log_execution_error_exception &)`,
+`reset_wires()` clears the search's visit marks, and the snapshot goes back.
+A move is also refused, and restored, when the net comes back with more pips
+in hot tiles than it started with.
 
-WHAT IT ACTUALLY NEEDS is snapshot and restore, which is also what the design
-above already asks for in step 5 and what makes the accept/reject guard
-possible at all: record the net's `wires` before rip-up, attempt the
-re-route, and on failure OR on a worse result re-bind the original pips
-through `bind_pip_internal`.  Then an unroutable arc is a rejected move
-rather than a dead run, and the pass can be judged on whether it improves
-p95 and fmax instead of on whether it survives.
+There is a second transaction around the whole pass: `snapshot_all()` before,
+and if `bind_and_check_all()` will not take the smoothed result at the end,
+everything reverts.  That matters because `bind_and_check()` rips up any arc
+it cannot bind and records the net as failed, and by this point there is no
+loop left to repair it.
 
-The clock exclusion earned its place regardless: ripping up a clock fails
-every time, and the driver-bel-type test is the portable way to recognise
-one.
+### Two defects the safety net then exposed
+
+Once failures were data instead of a crash, the numbers said what was wrong.
+On the first run 13 of 13 johnson nets and 132 of 138 vc707-litex nets came
+back unroutable -- a rate far too high to be real congestion.
+
+1. **The pass routed with an empty bounding box.**  `smooth_congestion()` is
+   handed the `ThreadContext` declared in `operator()`, whose `bb` is never
+   set.  `BoundingBox` default-constructs to `(-1,-1,-1,-1)` and
+   `thread_test_wire()` requires a wire to be inside it, so *every* wire in
+   the fabric was rejected and the search could not expand at all.  The only
+   arcs that routed were the ones whose two ends already met.  The
+   single-threaded main loop sets its own context's bb to the whole device
+   (`router2.cc:1566`); the pass now does the same.  That alone took johnson
+   from 10 unroutable to 0 and vc707-litex from 132 to 0.
+
+2. **Intra-slice arcs cannot be rebuilt** -- `SLICE_X1Y0.D5FF_Q` to
+   `SLICE_X1Y0.D4` -- and they occupy no interconnect, so there is nothing to
+   gain from trying.  `ad.bb` does not identify them:
+   `getRouteBoundingBox()` adds a search margin, so even X79Y221 to X79Y221
+   comes back as a box with area.  `PerWireData` already caches the tile each
+   wire is in, and comparing those is exact.
+
+Arcs the placer pre-bound are skipped too: `bind_and_check()` lets those break
+the normal availability rules and `ripup_arc()` drops that privilege
+irreversibly.  No johnson or vc707-litex arc is in that class, so that guard
+is reasoned from the code rather than measured.
+
+The Arch-level binding is also released for the duration of the pass.  The
+search does not consult it -- `PerWireData` was fixed at setup -- but
+`bind_and_check_all()` rips up and re-binds one net at a time, so a net whose
+route moved can collide with a net it has not reached yet.  Clearing the lot
+first removes that ordering hazard.
+
+### Where it stands
+
+    vc707-litex, defaults              p75 83, max 531, 41103 pips, 190.55 MHz
+    aggressive (cap 1.0, min-wires 2,
+    percentile 0.75, 8 rounds)         p75 82, max 525, 41122 pips, 190.55 MHz
+                                       ~1570 candidates a round, ~1400 kept,
+                                       ~170 rejected, 0 unroutable, 0 reverts
+
+    vc707-johnson, aggressive          p75 3 -> 4, max 148, 899 -> 905 pips
+                                       466.20 MHz unchanged at max-crit 0.8
+
+The mechanism is sound: nets move in bulk, the accept/reject test rejects
+about one in nine, nothing is ever left unroutable, the Arch always takes the
+result, and timing is untouched.  The gain is small -- peak tile occupancy
+-1.1%, mean -2.7%, at +0.05% total pips -- and fmax does not move.
+
+### What the selection experiment established
+
+Raising `cap` to 1.0 and dropping `min-wires` to 2 took the candidate list
+from 138 nets to ~1570 and the mean occupancy down, but the peak did not
+budge.  The peak-tile diagnostic says why:
+
+    busiest tile X59Y218 holds 531 pips:
+      79 eligible, 6 clock-driven, 412 high-fanout, 34 critical, 0 too-small
+
+A fanout cap of 64 put 412 of 531 pips out of reach.  The cap was there as a
+proxy for "do not touch clocks", and that proxy is simply wrong for this flow:
+the only global buffer meaningfully supported is CLKG, which is on dedicated
+routing and therefore does not appear in the tile occupancy at all, and the
+driver-bel test catches it directly -- 6 pips in that tile, not 412.
+Everything else with a large fanout is an ordinary signal on ordinary
+interconnect, and it is what the crowded tiles are made of.  The cap is now
+off by default and the same tile offers 491 eligible pips.
+
+That is what let the peak move at all: 531 -> 525, all of it in round 1.
+Rounds 2 through 6 hold at 525 with ~1400 nets re-routed each time, so the
+tile is not merely preferred, it is needed -- which makes the remaining peak a
+placement result, not a routing one.  A router pass cannot fix it.
+
+Raising `max-crit` from 0.8 to 0.9 costs timing: vc707-johnson went 466.20 ->
+431.97 MHz while its peak stayed at 148.  0.8 stays.
+
+### What is still not demonstrated
+
+That the pass is worth running.  It is safe, it does what it claims, and it
+buys about one percent of peak density for no timing change and a little
+runtime.  The next thing worth trying is not more aggression in the router --
+that is now exhausted -- but feeding the occupancy map back into placement.
