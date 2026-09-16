@@ -28,6 +28,14 @@ on:
 permissions:
   contents: write
 
+# CI deliberately tracks the tip of prjxray-db rather than the pin in the
+# Makefile: noticing the day upstream changes which bits a FASM line sets is
+# the point of running this here.  So the revision check reports the
+# difference and carries on, instead of failing the build.  The pin is what
+# makes a *release* reproducible; this is what makes drift visible.
+env:
+  PRJXRAY_DB_UNPINNED: 1
+
 jobs:
   build:
     name: Build VC707 Johnson Bitstream
@@ -36,7 +44,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          submodules: true
+          # recursive: yosys carries abc as a submodule of its own, and
+          # without it the yosys build stops part way through rather than at
+          # the checkout.
+          submodules: recursive
 
       # The database is cloned here rather than inside the build script (which
       # skips it when the directory exists) so its commit can go in the cache
@@ -50,6 +61,7 @@ jobs:
         run: |
           echo "nextpnr=$(git -C nextpnr rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "db=$(git -C .deps/prjxray-db rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "yosys=$(git -C yosys rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       # The same keys verify-examples.yml uses, so the two workflows share one
       # chipdb rather than generating it twice per push.  Both devices, since
@@ -91,14 +103,75 @@ jobs:
             libboost-all-dev \
             python3 \
             python3-venv \
-            yosys \
-            libz3-dev
+            libz3-dev \
+            bison \
+            flex \
+            libfl-dev \
+            libreadline-dev \
+            gawk \
+            tcl-dev \
+            libffi-dev \
+            pkg-config \
+            zlib1g-dev
+
+      # Built, not installed: the version decides what the results mean, and
+      # apt's is whatever the runner image happens to carry -- 0.33 at the time
+      # of writing, against the 0.63+173 this repository pins.  Cached on the
+      # submodule's own sha, so moving the pin rebuilds and nothing else does.
+      - name: Restore the pinned yosys
+        id: cache-yosys
+        uses: actions/cache/restore@v4
+        with:
+          # Cache the in-tree runtime together: techmaps come from share/, and
+          # the pinned yosys executable also shells out to its sibling
+          # yosys-abc.  Restoring only yosys leaves synthesis failing later
+          # with a missing helper.
+          path: |
+            yosys/yosys
+            yosys/yosys-abc
+            yosys/share
+          key: yosys-bin2-${{ steps.keys.outputs.yosys }}-${{ runner.os }}
+
+      # A cache hit is not the same as a usable yosys: the key names only the
+      # commit, so an entry saved with a shorter path list restores a yosys
+      # with no yosys-abc beside it, and -abc9 then fails with return code 127
+      # far from here.  Verify rather than assume, and rebuild if it is short.
+      - name: Check the restored yosys is complete
+        id: yosys-ok
+        run: |
+          if [ -x yosys/yosys ] && [ -x yosys/yosys-abc ]; then
+            echo "complete=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "restored yosys is incomplete (yosys-abc missing); rebuilding"
+            echo "complete=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build the pinned yosys
+        if: steps.cache-yosys.outputs.cache-hit != 'true' || steps.yosys-ok.outputs.complete != 'true'
+        run: |
+          make yosys
+          # 570 MB of debug symbols is not worth caching; the version string
+          # this is all pinned on survives stripping.
+          strip yosys/yosys
+          yosys/yosys -V
+
+      - name: Save the pinned yosys
+        if: always() && steps.cache-yosys.outputs.cache-hit != 'true' && hashFiles('yosys/yosys') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            yosys/yosys
+            yosys/yosys-abc
+            yosys/share
+          key: yosys-bin2-${{ steps.keys.outputs.yosys }}-${{ runner.os }}
+
+      - name: Check no package-manager yosys crept back in
+        run: bash scripts/check_no_apt_yosys.sh
 
       - name: Run CI build script
         env:
           GITHUB_WORKSPACE: ${{ github.workspace }}
           BUILD_NEXTPNR: 1
-          YOSYS: yosys
         run: bash .github/ci/build_vc707.sh
 
       - name: Save xc7a50t chipdb

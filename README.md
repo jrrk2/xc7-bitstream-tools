@@ -13,12 +13,33 @@ implemented backend is `--arch xilinx --family xc7`.
 
 Run `make` to display the available conversion and validation targets.
 
+## Proving what was built
+
+Every example verifies itself: the bitstream's FASM is extracted back to a
+netlist and proved equivalent to the synthesis it came from.
+
+```sh
+make verify-examples PRJXRAY_DB=/path/to/prjxray-db
+```
+
+The largest is a LiteX SoC (SERV CPU, BIOS in block RAM, register file in
+distributed RAM, carry chains, an MMCM) at 2820 proved obligations and no
+differences. `fasm2netlist/README.md` describes what the checker models, what
+it cuts at a boundary, and what it assumes.
+
+yosys is pinned as a submodule and built from source, because which yosys
+synthesised a design decides what the proof is even asking -- the same SoC
+proves completely under the pinned version and shows differences under another,
+since the two produce different netlists. `make yosys` builds it, and the sweep
+refuses to run with a different one unless `YOSYS_UNPINNED=1` says you mean it.
+
 ## Setup
 
 ```sh
 git submodule update --init --recursive
 cmake -S prjxray -B prjxray/build -DCMAKE_BUILD_TYPE=Release
 make tools
+make yosys
 make setup
 ```
 

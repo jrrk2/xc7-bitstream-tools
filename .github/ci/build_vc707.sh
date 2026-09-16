@@ -9,7 +9,8 @@ set -e
 #   XRAY_DB_PATH          — prjxray-db checkout path (default: ${DEPS_PATH}/prjxray-db)
 #   DEPS_PATH             — dependency root (default: .deps)
 #   BUILD_NEXTPNR         — rebuild nextpnr (default: 1 if nextpnr/ not configured)
-#   YOSYS                 — path to Yosys binary (default: yosys)
+#   YOSYS                 — path to Yosys binary (default: the pinned build,
+#                           see scripts/pinned_yosys.sh)
 #   VALIDATE              — run bit2verilog validation (default: 0)
 #
 # Steps:
@@ -35,12 +36,18 @@ log_memory() {
 : ${DEPS_PATH:=${GITHUB_WORKSPACE}/.deps}
 : ${XRAY_DB_PATH:=${DEPS_PATH}/prjxray-db}
 : ${BUILD_NEXTPNR:=}
-: ${YOSYS:=yosys}
 : ${VALIDATE:=0}
 
 # Derived paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# Which yosys synthesised a design decides what the equivalence check is
+# asking, so this does not default to whatever is on PATH: it goes through the
+# same guard the Makefile and the sweep use, which resolves the pinned build
+# and refuses a different one.  YOSYS still overrides it, and is still checked.
+YOSYS="$("${REPO_ROOT}/scripts/pinned_yosys.sh")" || exit 2
+export YOSYS
+
 NEXTPNR_DIR="${REPO_ROOT}/nextpnr"
 NEXTPNR_BUILD="${REPO_ROOT}/build"
 NEXTPNR_BIN="${NEXTPNR_BUILD}/nextpnr-himbaechel"
@@ -69,10 +76,16 @@ git submodule update --init --recursive
 echo "[1/6] Fetching dependencies..."
 mkdir -p "${DEPS_PATH}"
 
+# CI deliberately tracks the tip of prjxray-db: catching the day upstream
+# changes which bits a FASM line sets is the point of running it here.  So the
+# revision check reports rather than blocks, and prints what was actually used
+# -- a result quoted against an unknown database is the thing to avoid, not a
+# result quoted against a new one.
 if [[ ! -d "${XRAY_DB_PATH}" ]]; then
-    echo "  Cloning prjxray-db..."
-    git clone https://github.com/openXC7/prjxray-db "${XRAY_DB_PATH}"
+    echo "  Cloning prjxray-db (tip)..."
+    git clone --depth 1 https://github.com/openXC7/prjxray-db "${XRAY_DB_PATH}"
 fi
+PRJXRAY_DB_UNPINNED=1 "${REPO_ROOT}/scripts/prjxray_db.sh" "${XRAY_DB_PATH}" || true
 
 # 2. Set up Python venv if needed
 echo "[2/6] Setting up environment..."

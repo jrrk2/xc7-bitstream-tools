@@ -10,3 +10,14 @@ set_property LOC AR35 [get_ports led[4]]
 set_property LOC AP41 [get_ports led[5]]
 set_property LOC AP42 [get_ports led[6]]
 set_property LOC AU39 [get_ports led[7]]
+
+# IOSTANDARD, which this file did not need while the GT reference clock could
+# not be bound at all: nextpnr never reached the IO checks.  It does now.
+set_property IOSTANDARD LVCMOS18 [get_ports led[0]]
+set_property IOSTANDARD LVCMOS18 [get_ports led[1]]
+set_property IOSTANDARD LVCMOS18 [get_ports led[2]]
+set_property IOSTANDARD LVCMOS18 [get_ports led[3]]
+set_property IOSTANDARD LVCMOS18 [get_ports led[4]]
+set_property IOSTANDARD LVCMOS18 [get_ports led[5]]
+set_property IOSTANDARD LVCMOS18 [get_ports led[6]]
+set_property IOSTANDARD LVCMOS18 [get_ports led[7]]

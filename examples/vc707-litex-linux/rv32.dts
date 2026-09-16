@@ -1,0 +1,96 @@
+/dts-v1/;
+
+/ {
+	#address-cells = <0x02>;
+	#size-cells = <0x02>;
+	compatible = "enjoy-digital,litex-vexriscv-soclinux";
+	model = "VexRiscv SoCLinux on VC707 (open flow)";
+
+	chosen {
+		bootargs = "mem=512M@0x40000000 rootwait console=liteuart earlycon=sbi root=/dev/ram0 init=/sbin/init swiotlb=32";
+		linux,initrd-start = <0x40800000>;
+		linux,initrd-end   = <0x40bdfe00>;
+	};
+
+	cpus {
+		#address-cells = <0x01>;
+		#size-cells = <0x00>;
+		timebase-frequency = <100000000>;
+
+		cpu@0 {
+			clock-frequency = <0x00>;
+			compatible = "spinalhdl,vexriscv\0sifive,rocket0\0riscv";
+			d-cache-block-size = <0x40>;
+			d-cache-sets = <0x40>;
+			d-cache-size = <0x8000>;
+			d-tlb-sets = <0x01>;
+			d-tlb-size = <0x20>;
+			device_type = "cpu";
+			i-cache-block-size = <0x40>;
+			i-cache-sets = <0x40>;
+			i-cache-size = <0x8000>;
+			i-tlb-sets = <0x01>;
+			i-tlb-size = <0x20>;
+			mmu-type = "riscv,sv32";
+			reg = <0x00>;
+			riscv,isa = "rv32ima";
+			sifive,itim = <0x01>;
+			status = "okay";
+			tlb-split;
+
+			interrupt-controller {
+				#interrupt-cells = <0x01>;
+				compatible = "riscv,cpu-intc";
+				interrupt-controller;
+				phandle = <0x01>;
+			};
+		};
+	};
+
+	/* 512 MiB of DDR3 at 0x40000000 -- the VC707's MT8JTF12864 SODIMM. */
+	memory@40000000 {
+		device_type = "memory";
+		reg = <0x00 0x40000000 0x00 0x20000000>;
+	};
+
+	soc {
+		#address-cells = <0x02>;
+		#size-cells = <0x02>;
+		compatible = "simple-bus";
+		ranges;
+
+		/* CSR base is 0xf0000000; uart sits at +0x3800 in this build.
+		   Read from the SoC's own csr.json rather than assumed -- the
+		   Arty demo this tree derives from has it at 0xf0001800. */
+		/* LiteEth MAC.  Three reg regions addressed by INDEX, not names: this
+		   is the older binding, taken from the Arty dtb that shipped with the
+		   same kernel.  The middle one is the MDIO block, which an ethmin
+		   black-box PHY does not have -- 0xf000f000 is unmapped CSR space, so
+		   the writes go nowhere, which is what we want.
+
+		   Known not to work on the 5.0.13 image: that kernel is compiled for an
+		   8-bit CSR bus and this SoC is 32-bit, so litex_read32 concatenates
+		   four registers and asks for a 3.9 GB skb.  Needs the 6.9 kernel. */
+		mac@f0001800 {
+			compatible = "litex,liteeth";
+			reg = <0x00 0xf0001800 0x00 0x7c>,
+			      <0x00 0xf000f000 0x00 0x0a>,
+			      <0x00 0x80000000 0x00 0x2000>;
+			tx-fifo-depth = <0x02>;
+			rx-fifo-depth = <0x02>;
+			local-mac-address = [10 e2 d5 00 00 07];
+			status = "okay";
+		};
+
+		serial@f0004000 {
+			device_type = "serial";
+			compatible = "litex,liteuart";
+			reg = <0x00 0xf0004000 0x00 0x100>;
+			status = "okay";
+		};
+	};
+
+	aliases {
+		serial0 = "/soc/serial@f0004000";
+	};
+};

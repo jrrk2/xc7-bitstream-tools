@@ -26,6 +26,42 @@ extracted with `fasm2netlist`, graded against nextpnr's own placement dump:
 That last row is the whole 23 KB BIOS image, read back out of block-RAM INIT
 rows — the bitstream really does round-trip to a netlist and back.
 
+## Equivalence, and which toolchain it was proved with
+
+The SoC is also proved equal to its own synthesis: every register matched from
+the placement, every memory cut at its boundary and that boundary discharged,
+and every remaining cone shown equivalent by SAT.
+
+    2820 proved, 0 differ
+
+It is a proving example in `scripts/verify_examples.sh`, so CI fails if that
+stops being true.
+
+That result is a statement about one synthesis, and **which yosys built it
+matters** — two versions do not produce the same netlist, so they do not pose
+the same question. This is why yosys is pinned as a submodule and built from
+source rather than installed:
+
+| yosys | outcome |
+| --- | --- |
+| **0.63+173 (`66306a8ca`) — the pinned one** | 2820 proved, **0 differ** |
+| 0.64 (`8449dd470`, the-openroad-project) | 2784 proved, 36 differ |
+| 0.27+22 (`0f5e7c244`, f4pga conda) | nextpnr cannot place its netlist |
+
+The differences under 0.64 are concentrated in the SERV register file and the
+CSR block — a distributed-RAM read address the fabric computes and the
+synthesis does not — and are not yet understood. They are a fault in the model
+or in that netlist, not a regression: the same toolchain showed 126 before the
+block-RAM work.
+
+`scripts/verify_examples.sh` prints the yosys and nextpnr versions it used, and
+writes them beside each design's artefacts in `toolchain`, so a result can be
+compared with the run that produced it rather than guessed at.
+
+Build the pinned yosys with `make yosys`; the sweep picks it up automatically
+if it is there, and otherwise stops unless `YOSYS_UNPINNED=1` is set to use
+whatever is on `PATH` deliberately.
+
 Both flows produce a bitstream that boots on the board. They are built from
 identical gateware, so each announces itself in the BIOS banner:
 
