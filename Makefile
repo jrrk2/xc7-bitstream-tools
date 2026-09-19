@@ -1,4 +1,4 @@
-.PHONY: help setup litex-deps prjxray-db tftp-serve tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: vc707-litex-linux-payload-check linux-payload-check vc707-serv-sdc vc707-serv-sdc-flash vc707-serv-sd-vivado vc707-serv-sd vc707-serv-sd-flash vc707-litex-ddr-ethmin-smpsd help setup litex-deps prjxray-db tftp-serve tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 # Values that are properties of a machine rather than of the project --
@@ -140,7 +140,32 @@ LINUX_IMAGES   ?=
 # Where the per-MAC TFTP server serves this board's payload from.  The
 # directory is named for the SoC's MAC because scripts/tftp_serve.py dispatches
 # on it; see examples/vc707-litex-linux/README.md.
-LINUX_TFTP_DIR ?= $(HOME)/tftp-vc707/10:e2:d5:00:00:07
+# One directory per MAC, and one MAC per SoC variant: the BIOS asks for
+# "boot.json"/"boot.bin" by names it does not let us change, so two builds
+# sharing a MAC overwrite each other's payload.  vc707_litex.py picks the MAC
+# from the CPU type and spells the variant in the low three bytes (SMP, ROC,
+# SRV); vexriscv/linux keeps 00:00:07 because the known-good snapshot pairs
+# with it.  Note that the MAC is compiled INTO the bitstream, so a bitstream
+# built before this convention still looks in 10:e2:d5:00:00:07.
+LINUX_MAC       ?= 10:e2:d5:00:00:07
+LINUX_TFTP_DIR  ?= $(HOME)/tftp-vc707/$(LINUX_MAC)
+SMPSD_MAC       ?= 10:e2:d5:53:4d:50
+SMPSD_TFTP_DIR  ?= $(HOME)/tftp-vc707/$(SMPSD_MAC)
+ROCKET_MAC      ?= 10:e2:d5:52:4f:43
+ROCKET_TFTP_DIR ?= $(HOME)/tftp-vc707/$(ROCKET_MAC)
+# Root over NFS, for development: the rootfs stops being a cpio rebuilt and
+# re-sent for every change and becomes a directory on the host, edited in
+# place.  NFS_SERVER is this machine as the board sees it.
+# The staged kernel must be able to drive this SoC's 32-bit CSR bus.  A kernel
+# built for an 8-bit one (the external 5.0.13 image) boots perfectly and has no
+# network at all: liteeth's litex_read32 concatenates four registers and asks
+# for a ~3.9 GB skb.  Checked before staging, because "boots but no ethernet"
+# is far harder to notice than a failed make.
+LINUX_MIN_KERNEL ?= 6.0
+
+NFS_ROOT       ?= $(HOME)/vc707-nfsroot
+NFS_SERVER     ?= 192.168.1.106
+NFS_BOARD_IP   ?= 192.168.1.50
 
 # The address the BIOS network-boots FROM, compiled into the gateware.  It is
 # the machine SERVING TFTP, which is not necessarily this one: the board's
@@ -247,7 +272,8 @@ vc707-litex: fasm2netlist nextpnr
 # discovers the dependencies one failure at a time.
 LITEX_PKGS = migen litex litex-boards liteeth litedram litesdcard \
              pythondata-cpu-serv pythondata-cpu-vexriscv \
-             pythondata-software-picolibc pythondata-software-compiler_rt
+             pythondata-software-picolibc pythondata-software-compiler_rt \
+             pythondata-cpu-rocket
 
 # The segbits database, pinned.  Not a submodule because it is not this
 # project's to carry, but pinned all the same -- see scripts/prjxray_db.sh for
@@ -288,6 +314,100 @@ vc707-litex-gen:
 	   $(LITEX_DIR)/build-$(LITEX_FLOW)/gateware/$(LITEX_TOP).xdc \
 	   $(LITEX_DIR)/build-$(LITEX_FLOW)/gateware/$(LITEX_TOP)_*.init $(LITEX_GATEWARE)/
 	@echo "refreshed $(LITEX_GATEWARE) from the $(LITEX_FLOW) build"
+
+# A deliberately tiny SD-card target, for iterating on nextpnr I/O fixes.
+#
+# The full SMP+SD SoC takes about fifty minutes through yosys and nextpnr,
+# which is far too slow to test one pseudo-pip change against.  This is the
+# same SERV SoC vc707-litex-gen builds -- bit-serial CPU, 16 KB of integrated
+# RAM, no DDR3 and no ethernet -- with the SD card added, so it exercises
+# exactly the LIOB18 pads and LIOI tiles the SD card uses and almost nothing
+# else.  Build it, flash it, and use the BIOS "sdcardboot" or the sdcard
+# commands to see whether the card answers.
+SERVSD_DIR ?= $(LITEX_DIR)/build-serv-sd
+SERVSD_OUT ?= litex_serv_sd_vc707.bit
+SERV_RTL   ?= $(CURDIR)/litex-deps/pythondata-cpu-serv/pythondata_cpu_serv/verilog/rtl
+
+vc707-serv-sd: fasm2netlist nextpnr
+	@scripts/pinned_yosys.sh >/dev/null
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
+	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
+	rm -rf $(SERVSD_DIR)
+	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
+		--with-led-chaser --cpu-type serv --integrated-main-ram-size 0x4000 \
+		--with-sdcard --flow openXC7 --no-compile-gateware --build \
+		--output-dir $(SERVSD_DIR)
+	cd $(SERVSD_DIR)/gateware && $(PINNED_YOSYS) -q -p \
+		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+		$(SERV_RTL)/*.v $(LITEX_TOP).v
+	$(NEXTPNR_BIN) --device $(LITEX_PART) \
+		-o xdc=$(SERVSD_DIR)/gateware/$(LITEX_TOP).xdc \
+		--json $(SERVSD_DIR)/gateware/$(LITEX_TOP).json \
+		-o fasm=$(SERVSD_DIR)/gateware/$(LITEX_TOP).fasm \
+		--router router2 $(NEXTPNR_FLAGS)
+	$(MAKE) check-fasm FASM=$(SERVSD_DIR)/gateware/$(LITEX_TOP).fasm PRJXRAY_DB=$(PRJXRAY_DB)
+	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 --part $(LITEX_PART) \
+		--db $(PRJXRAY_DB) --fasm $(SERVSD_DIR)/gateware/$(LITEX_TOP).fasm \
+		--output $(SERVSD_OUT)
+	@echo "built $(SERVSD_OUT) -- flash with 'make vc707-serv-sd-flash'"
+
+# The same tiny SoC through Vivado, as the reference to diff against.  Both
+# flows on one small design is a far better discriminator than comparing the
+# open flow's SERV build against Vivado's much larger SMP one: the only
+# difference left is the implementation, so any FASM difference is a real
+# defect rather than a consequence of different logic.
+SERVSD_VIVADO_DIR ?= $(LITEX_DIR)/build-serv-sd-vivado
+
+vc707-serv-sd-vivado:
+	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
+	rm -rf $(SERVSD_VIVADO_DIR)
+	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
+		--with-led-chaser --cpu-type serv --integrated-main-ram-size 0x4000 \
+		--with-sdcard --flow vivado --build \
+		--output-dir $(SERVSD_VIVADO_DIR)
+	@echo "built $(SERVSD_VIVADO_DIR)/gateware/$(LITEX_TOP).bit"
+
+# The same SERV SoC with the mczerski SD controller instead of LiteSDCard.
+# Its pads are plain IOBUFs with no IDDR, so unlike the LiteSDCard build this
+# one can be put through verify-extraction: tileverilog models ILOGIC as a
+# bypass and drops anything else, which is why the LiteSDCard design reports
+# 1275 differences that say nothing.
+SERVSDC_DIR ?= $(LITEX_DIR)/build-serv-sdc
+SERVSDC_OUT ?= litex_serv_sdc_vc707.bit
+SDC_RTL     ?= $(CURDIR)/rtl-deps/sd-card-controller/rtl/verilog
+
+vc707-serv-sdc: fasm2netlist nextpnr
+	@scripts/pinned_yosys.sh >/dev/null
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
+	@test -f $(SDC_RTL)/sdc_controller.v || { \
+	  echo "rtl-deps/sd-card-controller is empty; run: git submodule update --init rtl-deps/sd-card-controller"; exit 2; }
+	rm -rf $(SERVSDC_DIR)
+	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
+		--with-led-chaser --cpu-type serv --integrated-main-ram-size 0x4000 \
+		--with-sdc --flow openXC7 --no-compile-gateware --build \
+		--output-dir $(SERVSDC_DIR)
+	cd $(SERVSDC_DIR)/gateware && $(PINNED_YOSYS) -q -p \
+		'read_verilog -I$(SDC_RTL) $(SDC_RTL)/*.v; synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+		$(SERV_RTL)/*.v $(LITEX_TOP).v
+	$(NEXTPNR_BIN) --device $(LITEX_PART) \
+		-o xdc=$(SERVSDC_DIR)/gateware/$(LITEX_TOP).xdc \
+		--json $(SERVSDC_DIR)/gateware/$(LITEX_TOP).json \
+		-o fasm=$(SERVSDC_DIR)/gateware/$(LITEX_TOP).fasm \
+		-o placement=$(SERVSDC_DIR)/gateware/$(LITEX_TOP)_placement.json \
+		--router router2 $(NEXTPNR_FLAGS)
+	$(MAKE) check-fasm FASM=$(SERVSDC_DIR)/gateware/$(LITEX_TOP).fasm PRJXRAY_DB=$(PRJXRAY_DB)
+	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 --part $(LITEX_PART) \
+		--db $(PRJXRAY_DB) --fasm $(SERVSDC_DIR)/gateware/$(LITEX_TOP).fasm \
+		--output $(SERVSDC_OUT)
+	@echo "built $(SERVSDC_OUT)"
+
+vc707-serv-sdc-flash:
+	@test -f $(SERVSDC_OUT) || { echo "no $(SERVSDC_OUT); run 'make vc707-serv-sdc' first"; exit 2; }
+	$(OFL) --cable digilent --freq 15000000 $(SERVSDC_OUT)
+
+vc707-serv-sd-flash:
+	@test -f $(SERVSD_OUT) || { echo "no $(SERVSD_OUT); run 'make vc707-serv-sd' first"; exit 2; }
+	$(OFL) --cable digilent --freq 15000000 $(SERVSD_OUT)
 
 # Prove the LiteX SoC against its own synthesis.  Separate from vc707-litex
 # because the two answer different questions and cost different amounts: that
@@ -489,6 +609,41 @@ vc707-litex-ddr-ethmin: fasm2netlist nextpnr
 		--output $(LITEX_DDRETHMIN_OUT)
 	@echo "built $(LITEX_DDRETHMIN_OUT) -- flash with 'make vc707-litex-ddr-ethmin-flash'"
 
+# The same SoC the Vivado SMP+SD build produces, through the open flow.
+# VexRiscv-SMP needs two more sources than plain VexRiscv: the cluster
+# LiteX generates into the build directory, whose name encodes the config
+# (cache sizes, TLB sets, wishbone memory), and the generic RAM primitive
+# it instantiates.  The cluster file is found by glob rather than named,
+# so a config change does not silently synthesise a stale netlist.
+SMPSD_DIR ?= $(LITEX_DDRETHMIN_DIR)/build-smpsd-openXC7
+SMPSD_OUT ?= litex_ddr_ethmin_smpsd_vc707.bit
+SMPSD_RAM ?= $(CURDIR)/litex-deps/pythondata-cpu-vexriscv-smp/pythondata_cpu_vexriscv_smp/verilog/Ram_1w_1rs_Generic.v
+
+vc707-litex-ddr-ethmin-smpsd: fasm2netlist nextpnr
+	@scripts/pinned_yosys.sh >/dev/null
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
+	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
+	rm -rf $(SMPSD_DIR)
+	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
+		--with-led-chaser --cpu-type vexriscv_smp --cpu-variant linux --cpu-count 1 \
+		--hardware-breakpoints 0 --with-wishbone-memory --with-ddr --with-ethmin-phy \
+		--with-sdcard --flow openXC7 --no-compile-gateware --build \
+		$(if $(LITEX_REMOTE_IP),--remote-ip $(LITEX_REMOTE_IP)) \
+		--output-dir $(SMPSD_DIR)
+	cd $(SMPSD_DIR)/gateware && $(PINNED_YOSYS) -q -p \
+		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+		$(SMPSD_RAM) $$(ls VexRiscvLitexSmpCluster_*.v) $(ETHMIN_PHY_V) $(LITEX_TOP).v
+	$(NEXTPNR_BIN) --device $(LITEX_PART) \
+		-o xdc=$(SMPSD_DIR)/gateware/$(LITEX_TOP).xdc \
+		--json $(SMPSD_DIR)/gateware/$(LITEX_TOP).json \
+		-o fasm=$(SMPSD_DIR)/gateware/$(LITEX_TOP).fasm \
+		--router router2 $(NEXTPNR_FLAGS)
+	$(MAKE) check-fasm FASM=$(SMPSD_DIR)/gateware/$(LITEX_TOP).fasm PRJXRAY_DB=$(PRJXRAY_DB)
+	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 --part $(LITEX_PART) \
+		--db $(PRJXRAY_DB) --fasm $(SMPSD_DIR)/gateware/$(LITEX_TOP).fasm \
+		--output $(SMPSD_OUT)
+	@echo "built $(SMPSD_OUT)"
+
 # Linux, through the open flow.  See examples/vc707-litex-linux/README.md.
 vc707-litex-linux: tools fasm2netlist nextpnr
 	@scripts/pinned_yosys.sh >/dev/null
@@ -538,6 +693,61 @@ vc707-litex-linux-payload: vc707-litex-linux-emulator
 		--csr $(LINUX_BUILD)/csr.json --images $(LINUX_IMAGES) \
 		--out "$(LINUX_TFTP_DIR)"
 	@echo "payload staged in $(LINUX_TFTP_DIR)"
+
+# Stage the same kernel and dtb, but with root on NFS instead of the initramfs.
+# rootfs.cpio is not sent at all, so netboot moves ~4 MB less and a change to
+# the root filesystem needs no rebuild of anything -- edit $(NFS_ROOT) and
+# reboot the board.
+#
+# The export itself needs root, once: sudo scripts/nfsroot_setup.sh
+vc707-litex-linux-nfsroot: vc707-litex-linux-emulator
+	@test -n "$(LINUX_IMAGES)" && test -f "$(LINUX_IMAGES)/Image" || { \
+	  echo "LINUX_IMAGES must name a directory holding an rv32ima Image:"; \
+	  echo "  make vc707-litex-linux-nfsroot LINUX_IMAGES=/path/to/buildroot/images"; exit 2; }
+	@test -d "$(NFS_ROOT)/sbin" || { \
+	  echo "$(NFS_ROOT) does not look like a root filesystem -- run first:"; \
+	  echo "  sudo scripts/nfsroot_setup.sh $(NFS_ROOT) $(LINUX_IMAGES)/rootfs.tar $(NFS_BOARD_IP)"; exit 2; }
+	@v=$$(strings "$(LINUX_IMAGES)/Image" | grep -m1 -oE 'Linux version [0-9]+\.[0-9]+' | awk '{print $$3}'); \
+	  test -n "$$v" || { echo "no 'Linux version' string in $(LINUX_IMAGES)/Image"; exit 2; }; \
+	  if [ "$$(printf '%s\n%s\n' "$(LINUX_MIN_KERNEL)" "$$v" | sort -V | head -1)" != "$(LINUX_MIN_KERNEL)" ]; then \
+	    echo "$(LINUX_IMAGES)/Image is Linux $$v, older than $(LINUX_MIN_KERNEL)."; \
+	    echo "It would boot and have no ethernet -- see LINUX_MIN_KERNEL in this Makefile."; \
+	    exit 2; \
+	  fi; \
+	  echo "kernel $$v ok (>= $(LINUX_MIN_KERNEL))"
+	mkdir -p "$(LINUX_TFTP_DIR)"
+	cp $(LINUX_IMAGES)/Image "$(LINUX_TFTP_DIR)/"
+	cp $(LINUX_DIR)/emulator/emulator.bin "$(LINUX_TFTP_DIR)/"
+	rm -f "$(LINUX_TFTP_DIR)/rootfs.cpio"
+	$(PYTHON) scripts/linux_payload.py --dts $(LINUX_DIR)/rv32.dts \
+		--csr $(LINUX_BUILD)/csr.json --images $(LINUX_IMAGES) \
+		--nfsroot $(NFS_SERVER):$(NFS_ROOT) --ip $(NFS_BOARD_IP) \
+		--out "$(LINUX_TFTP_DIR)"
+	@$(MAKE) --no-print-directory vc707-litex-linux-payload-check
+	@echo "NFS-root payload staged in $(LINUX_TFTP_DIR)"
+
+# Check a staged payload against the SoC that will boot it.  Run by the staging
+# targets above, and usable on its own after staging anything by hand -- which
+# is how the wrong payload reached the wrong directory in the first place.
+#
+# It checks the things that present as something else entirely: a directory
+# named for a MAC that is not this SoC's (two SoCs sharing one directory, the
+# second boot silently jumping into the first's machine-mode code), a kernel
+# too old for this CSR bus, a device tree describing another build's UART, and
+# a liteeth node in the indexed binding the 6.9 driver will not probe.
+vc707-litex-linux-payload-check:
+	$(PYTHON) scripts/check_linux_payload.py --dir "$(LINUX_TFTP_DIR)" \
+		--csr $(LINUX_BUILD)/csr.json --min-kernel $(LINUX_MIN_KERNEL)
+
+# The same check against any variant's directory, for payloads staged outside
+# these targets:
+#   make linux-payload-check DIR=~/tftp-vc707/10:e2:d5:53:4d:50 \
+#                            CSR=examples/vc707-litex-ddr-ethmin/build-smpsd-smpmac/csr.json
+linux-payload-check:
+	@test -n "$(DIR)" && test -n "$(CSR)" || { \
+	  echo "usage: make linux-payload-check DIR=<tftp dir> CSR=<csr.json>"; exit 2; }
+	$(PYTHON) scripts/check_linux_payload.py --dir "$(DIR)" --csr "$(CSR)" \
+		--min-kernel $(LINUX_MIN_KERNEL)
 
 # The board network-boots from this; it dispatches on the requesting MAC so
 # several boards can be served their own payload from one directory.  Runs in

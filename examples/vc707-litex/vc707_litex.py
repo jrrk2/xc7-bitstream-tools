@@ -47,6 +47,8 @@ from migen.genlib.resetsync import AsyncResetSynchronizer
 
 from litex.gen import *
 
+from litex.soc.interconnect.csr import CSRStorage, CSRStatus, CSRField
+from litex.build.generic_platform import Subsignal, Pins, IOStandard, Misc
 from litex_boards.platforms import xilinx_vc707
 
 from litex.soc.integration.soc import *
@@ -152,6 +154,52 @@ class _CRG(LiteXModule):
         platform.add_period_constraint(self.cd_sys.clk, 1e9 / sys_clk_freq)
 
 
+# The DDR3 SODIMM is 64 bits wide and 1 GB; litex-boards declares only the
+# lower 32 DQ, which halves both the capacity LiteDRAM computes and the peak
+# bandwidth.  The upper four byte lanes are taken from Vivado's own VC707
+# board definition (data/boards/board_files/vc707/1.4/mig.prj, DataWidth=64)
+# rather than guessed -- its lower four lanes reproduce the litex-boards
+# pinout exactly, which is what says the upper four can be trusted.
+#
+# Declared here as an extension so the litex-boards submodule stays as
+# upstream has it, and a 32-bit build remains available for comparison.
+_ddram64_io = [
+    ("ddram64", 0,
+        Subsignal("a", Pins(
+            "A20 B19 C20 A19 A17 A16 D20 C18",
+            "D17 C19 B21 B17 A15 A21 F17 E17"),
+            IOStandard("SSTL15")),
+        Subsignal("ba",      Pins("D21 C21 D18"), IOStandard("SSTL15")),
+        Subsignal("ras_n",   Pins("E20"), IOStandard("SSTL15")),
+        Subsignal("cas_n",   Pins("K17"), IOStandard("SSTL15")),
+        Subsignal("we_n",    Pins("F20"), IOStandard("SSTL15")),
+        Subsignal("cs_n",    Pins("J17"), IOStandard("SSTL15")),
+        Subsignal("dm",      Pins("M13 K15 F12 A14 C23 D25 C31 F31"),
+            IOStandard("SSTL15")),
+        Subsignal("dq",      Pins(
+            "N14 N13 L14 M14 M12 N15 M11 L12",
+            "K14 K13 H13 J13 L16 L15 H14 J15",
+            "E15 E13 F15 E14 G13 G12 F14 G14",
+            "B14 C13 B16 D15 D13 E12 C16 D16",
+            "A24 B23 B27 B26 A22 B22 A25 C24",
+            "E24 D23 D26 C25 E23 D22 F22 E22",
+            "A30 D27 A29 C28 D28 B31 A31 A32",
+            "E30 F29 F30 F27 C30 E29 F26 D30"),
+            IOStandard("SSTL15_T_DCI")),
+        Subsignal("dqs_p",   Pins("N16 K12 H16 C15 A26 F25 B28 E27"),
+            IOStandard("DIFF_SSTL15")),
+        Subsignal("dqs_n",   Pins("M16 J12 G16 C14 A27 E25 B29 E28"),
+            IOStandard("DIFF_SSTL15")),
+        Subsignal("clk_p",   Pins("H19"), IOStandard("DIFF_SSTL15")),
+        Subsignal("clk_n",   Pins("G18"), IOStandard("DIFF_SSTL15")),
+        Subsignal("cke",     Pins("K19"), IOStandard("SSTL15")),
+        Subsignal("odt",     Pins("H20"), IOStandard("SSTL15")),
+        Subsignal("reset_n", Pins("C29"), IOStandard("LVCMOS15")),
+        Misc("SLEW=FAST"),
+        Misc("VCCAUX_IO=HIGH"),
+    ),
+]
+
 class _CRGDDR(LiteXModule):
     """The clock generator the DDR3 PHY needs, which the one above cannot be.
 
@@ -218,6 +266,31 @@ class EthminSGMIIPHY(LiteXModule):
 
     def __init__(self, platform, refclk_pads, data_pads):
         from liteeth.phy.gmii import LiteEthPHYGMIITX, LiteEthPHYGMIIRX
+        # An MDIO register block wired to nothing.  1000BASE-X autonegotiation
+        # brings this link up without management access, so there is nothing
+        # to read -- but a PHY with no CSRs registers no `ethphy` bank, and
+        # litex_json2dts_linux only emits a MAC node when it finds BOTH
+        # `ethmac` and `ethphy`.  Without it the device tree has no ethernet
+        # and the board cannot mount an NFS root.
+        #
+        # The registers are declared here rather than by using LiteEthPHYMDIO,
+        # which puts a migen Tristate on its pads -- and the Xilinx platform
+        # lowers ANY Tristate to an IOBUF, pad or not.  Given plain signals it
+        # still builds one, with nothing to place it on, and Vivado stops with
+        # "IOBUF_64/IBUF is unplaced after IO placer".  Counting top-level
+        # ports does not catch that; the buffer is not a port.
+        #
+        # The layout matches LiteEthPHYMDIO's exactly, because the device tree
+        # describes this bank as 0x0a bytes at the ethphy base and the driver
+        # reads it accordingly.
+        self._w = CSRStorage(fields=[
+            CSRField("mdc", size=1, description="MDIO clock (not wired)."),
+            CSRField("oe",  size=1, description="MDIO output enable (not wired)."),
+            CSRField("w",   size=1, description="MDIO write data (not wired).")],
+            name="w")
+        self._r = CSRStatus(fields=[
+            CSRField("r", size=1, description="MDIO read data; always 0.")],
+            name="r")
 
         # The GMII side, in the shape LiteEth's datapath expects of "pads".
         class _GMIIPads:
@@ -278,10 +351,12 @@ class EthminSGMIIPHY(LiteXModule):
 class BaseSoC(SoCCore):
     def __init__(self, sys_clk_freq=SYS_CLK_FREQ, with_led_chaser=True,
                  with_ethernet=False, with_ethmin_phy=False, with_ddr=False,
-                 with_sdcard=False,
+                 with_sdcard=False, with_spi_sdcard=False, sdcard_debug=False,
+                 with_sdc=False,
                  flow="unknown",
                  local_ip=LOCAL_IP, remote_ip=REMOTE_IP,
-                 mac_address=MAC_ADDRESS, tftp_port=TFTP_PORT, **kwargs):
+                 mac_address=MAC_ADDRESS, tftp_port=TFTP_PORT,
+                 with_ddr64=False, **kwargs):
         platform = xilinx_vc707.Platform()
 
         self.crg = _CRGDDR(platform, sys_clk_freq) if with_ddr \
@@ -300,7 +375,8 @@ class BaseSoC(SoCCore):
                            + (["DDR3"] if with_ddr else [])
                            + (["LiteEth"] if with_ethernet else [])
                            + (["LiteEth/ethmin"] if with_ethmin_phy else [])
-                           + (["SDCard"] if with_sdcard else []))
+                           + (["SDCard"] if with_sdcard else [])
+                           + (["SPI-SDCard"] if with_spi_sdcard else []))
         SoCCore.__init__(self, platform, sys_clk_freq,
                          ident=f"{variant} [{flow}]", **kwargs)
 
@@ -337,10 +413,17 @@ class BaseSoC(SoCCore):
                     "--with-ddr and --integrated-main-ram-size are alternatives: "
                     "the SoC takes its main RAM from one or the other")
 
-            self.ddrphy = s7ddrphy.V7DDRPHY(platform.request("ddram"),
-                                            memtype      = "DDR3",
-                                            nphases      = 4,
-                                            sys_clk_freq = sys_clk_freq)
+            # 64 bits of the SODIMM rather than 32: twice the peak bandwidth
+            # and the whole 1 GB, since LiteDRAM computes capacity from the
+            # module geometry AND the width the PHY presents.  The narrow
+            # build stays available so the two can be compared.
+            if with_ddr64:
+                platform.add_extension(_ddram64_io)
+            self.ddrphy = s7ddrphy.V7DDRPHY(
+                platform.request("ddram64" if with_ddr64 else "ddram"),
+                memtype      = "DDR3",
+                nphases      = 4,
+                sys_clk_freq = sys_clk_freq)
             self.add_sdram("sdram",
                            phy           = self.ddrphy,
                            module        = MT8JTF12864(sys_clk_freq, "1:4"),
@@ -493,8 +576,38 @@ class BaseSoC(SoCCore):
         # Nothing needs writing on the Linux side: once these CSRs exist,
         # litex_json2dts_linux.py emits the litex,mmc node itself, with
         # bus-width = <4>, and the kernel has CONFIG_MMC_LITEX=y already.
+        if with_sdcard and with_spi_sdcard:
+            raise ValueError("--with-sdcard and --with-spi-sdcard drive the same "
+                             "four pins in different modes; pick one")
+
         if with_sdcard:
-            self.add_sdcard()
+            self.add_sdcard(software_debug=sdcard_debug)
+
+        # The mczerski SD controller, as a discriminator against LiteSDCard --
+        # see examples/vc707-litex/sdc/sdc_controller.py for why.  It occupies
+        # the same four pins, so it is mutually exclusive with the others.
+        if with_sdc:
+            import sys
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            from sdc.sdc_controller import SDCController
+            rtl = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "..", "..", "rtl-deps", "sd-card-controller",
+                               "rtl", "verilog")
+            pads = platform.request("sdcard")
+            self.sdc = SDCController(platform, pads, os.path.normpath(rtl))
+            self.bus.add_slave("sdc", self.sdc.bus,
+                               SoCRegion(origin=0xb0000000, size=0x100, cached=False))
+            self.bus.add_master("sdc_dma", master=self.sdc.dma_bus)
+
+        # SPI mode: clk AN30, mosi AP30 (the card's CMD), miso AR30 (DAT0),
+        # cs_n AT30 (DAT3).  One data line instead of four, and no parallel
+        # CRC -- which is the part that does not work on this board.  A CVA6
+        # build reads this same card and its GPT correctly in this mode, on
+        # these pins, where LiteSDCard's 4-bit path fails every 512-byte
+        # transfer above 400 kHz.
+        if with_spi_sdcard:
+            self.add_spi_sdcard(spi_clk_freq=(1e6 if sdcard_debug else 10e6),
+                                software_debug=sdcard_debug)
 
         if with_led_chaser:
             self.leds = LedChaser(
@@ -528,6 +641,15 @@ def main():
     parser.add_target_argument("--with-ddr", action="store_true",
                                help="Enable the DDR3 SODIMM through the V7DDRPHY.  Selects a "
                                     "different clock generator; see _CRGDDR.")
+    parser.add_target_argument("--sdcard-debug", action="store_true",
+                               help="Add the sdcard_DEBUG constant, which makes the BIOS print "
+                                    "SD card diagnostics.  For bring-up: this is the first "
+                                    "bitstream with LiteSDCard in it.")
+    parser.add_target_argument("--with-spi-sdcard", action="store_true",
+                               help="Enable the SD card in SPI mode -- four wires on the same "
+                                    "pins as --with-sdcard, one data line, no parallel CRC.  "
+                                    "Slower, but it is the mode a CVA6 build reads this card "
+                                    "with on this board.")
     parser.add_target_argument("--with-sdcard", action="store_true",
                                help="Enable the 4-bit SD card through LiteSDCard.  The VC707 "
                                     "platform already defines the pins (clk AN30, cmd AP30, "
@@ -535,6 +657,15 @@ def main():
                                     "work -- but it adds a PHY, a core and two DMA masters to a "
                                     "design that only closes timing with a raised placer "
                                     "timing weight.")
+    parser.add_target_argument("--with-sdc", action="store_true",
+                               help="Use the mczerski SD-card-controller instead of "
+                                    "LiteSDCard: plain flip-flops at the pad rather "
+                                    "than IDDR, so the extraction proof can see the "
+                                    "data path.")
+    parser.add_target_argument("--with-ddr64", action="store_true",
+                               help="Use all 64 DQ of the DDR3 SODIMM: 1 GB rather "
+                                    "than 512 MB, and twice the peak bandwidth. "
+                                    "Needs --with-ddr.")
     parser.add_target_argument("--flow", default="unknown",
                                help="Name of the implementation flow this build is for; "
                                     "reported by the BIOS 'ident' command.")
@@ -547,10 +678,14 @@ def main():
     soc = BaseSoC(
         sys_clk_freq=sys_clk_freq,
         with_led_chaser=args.with_led_chaser,
+        with_ddr64=args.with_ddr64,
         with_ethernet=args.with_ethernet,
         with_ethmin_phy=args.with_ethmin_phy,
         with_ddr=args.with_ddr,
         with_sdcard=args.with_sdcard,
+        with_sdc=args.with_sdc,
+        with_spi_sdcard=args.with_spi_sdcard,
+        sdcard_debug=args.sdcard_debug,
         local_ip=args.local_ip,
         remote_ip=args.remote_ip,
         mac_address=args.mac_address,

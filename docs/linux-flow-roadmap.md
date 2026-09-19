@@ -311,12 +311,35 @@ have.  The nearer path is cross-compiled binaries on the card, with native
 nextpnr does not deliver that, the cause is nondeterministic container
 iteration -- a bug class to be fixed, not a property to design around.
 
-**But the near-term gate cannot be the whole FASM, and this was measured.**
-Three builds from identical inputs, identical flags, on one machine produced
-three different fabrics, differing in thousands of `INT_R`/`INT_L`
-interconnect and `CLBLM` logic lines and in total line count.  This host does
-not agree with itself, so "this host and GitHub agree on the whole FASM" is
-unreachable rather than merely unmet.
+**The near-term gate is the whole FASM, and it is reachable.**  An earlier
+version of this document claimed otherwise, on the strength of three builds
+that produced three different fabrics.  That test was invalid: it regenerated
+the SoC each run, and the LiteX BIOS bakes `__DATE__`/`__TIME__` into its ROM,
+so every run fed nextpnr a different netlist -- the three JSONs hash
+`5288f3c4`, `bc15b356`, `6081af76`.  The input was walking, not the placer.
+
+Rerun properly, with the netlist held fixed, nextpnr produced byte-identical
+FASM twice over, and identical to the original run: `a204ba4f97542142` from
+netlist `5288f3c4f0873d97`.  nextpnr's seed is fixed by default; `--seed`
+exists to change results deliberately, not to stabilise them.
+
+So for a fixed (binary, netlist, chipdb, seed) the output is reproducible, and
+when it is not, an input is moving.  In order of what has actually bitten this
+ecosystem:
+
+1. **The nextpnr binary.**  `placer_heap` solves with Eigen, and Eigen 3.4 vs
+   5.x give different placements from the same git revision.  A CI image that
+   updates Eigen quietly hands you a different nextpnr under an unchanged rev.
+2. **The netlist.**  LiteX regenerates the SoC and the BIOS each run, and an
+   unpinned yosys moves underneath.  Hash the `.json`: if two runs differ
+   there, the walk is upstream of place-and-route entirely.
+3. **Threading**, where any parallel refinement is enabled.  Use defaults
+   while chasing this.
+
+CI should print five things per run -- yosys json sha256, chipdb bin sha256,
+nextpnr binary sha256, output fasm sha256, and the Eigen version.  The first
+line that differs between two runs is the cause and the rest are consequence.
+This would have caught the above in one run rather than a day.
 
 What *is* reproducible was measured in the same experiment, and is what CI
 asserts:
@@ -357,6 +380,33 @@ before it was quoted against a database nobody had recorded.
 
 ## Open items carried alongside
 
+- **NaxRiscv builds and fits, but is DOA on the board. TBD.**  The
+  out-of-order core was the open question and the answer is that it fits
+  easily: dual-core, rv64, 1 GB, SGMII, at 75 MHz it takes 15.14% of the
+  LUTs (45961), 10.29% of the block RAM, 32 DSPs, and Vivado reports "All
+  user specified timing constraints are met".  No black boxes, no critical
+  warnings, ROM populated (78 KB init, 34 KB BIOS), reset vector 0x0
+  matching ROM at 0x0, UART CSR at 0xf0001000.
+
+  On hardware the LED chaser runs -- so clock, reset and fabric are alive --
+  and there is no UART output whatsoever.  The chaser needs no CPU, so what
+  that proves is only that the design is clocked; the CPU never reaches the
+  BIOS's first putchar, which happens before DRAM init, so this is NOT the
+  DDR3 question below.
+
+  Two variables were changed at once and the null result separates neither:
+  75 MHz has never been proven on this board (every bitstream that has ever
+  booted is 100 MHz, and DDR_SYS_CLK_FREQ = 100e6 for that reason), and
+  NaxRiscv had never been built here at all.  The decisive experiment is
+  NaxRiscv at 100 MHz, single core -- every known-good parameter except the
+  core itself.  Build: examples/vc707-litex-ddr-ethmin/build-naxriscv-smp2-75-vivado.
+
+  Worth knowing for whoever picks this up: NaxRiscv needs JDK 17.  It pins
+  sbt 1.6.0, which fails under the JDK 21 that is default on this machine
+  with "reconstructed args ... FatalError", and pythondata-cpu-naxriscv is
+  not on PyPI -- it is a git clone, pip-installed editable, and LiteX then
+  clones SpinalHDL/NaxRiscv itself and elaborates through sbt.
+
 - `main_ram` 512 MiB -> 1 GiB: **an optional variant, not a step.**  It
   perturbs the layout of the I/O blocks, which is medium risk on the design
   that is already hardest to close, and it moves the `io.fasm` signature that
@@ -376,10 +426,33 @@ before it was quoted against a database nobody had recorded.
 - `create_pblock` region support was offered too; valuable for ingesting Vivado
   constraints, not as a timing fix -- clock LOCs measurably made timing worse
   here (60.0 vs 91.3 MHz).
-- **nextpnr placement is not deterministic, even on one machine.**  Measured:
-  three builds, identical inputs and flags, three different fabrics.  Not a
-  cross-platform quirk -- a property of the tool.  Closing it is what makes
-  the contract's stated goal reachable; likely culprits are pointer-keyed or
-  hash-ordered containers whose iteration order feeds placement.
+- **The macOS divergence is most likely Eigen**, not the C++ standard library
+  as first supposed.  This host builds nextpnr against Eigen 3.4.0; Homebrew
+  ships 5.x.  `scripts/eigen_check.sh` and `eigen-kit.tar.gz` test it
+  directly, running one fixed netlist through nextpnr built both ways and
+  comparing against the Linux FASM.
+- **`vc707-smpsd`'s eth_tx_clk blocker needs re-measuring, and may be gone.**
+  `scripts/verify_examples.sh` lists it blocked at "97.3 MHz on eth_tx_clk
+  against the 125 MHz the SGMII PHY needs".  The SMP LiteX SoC now closes that
+  clock at **126.84 MHz post-routing** and passes, on the netlist committed to
+  nextpnr's `vc707-litex-linux-smp` example.
+
+  Two cautions before promoting it out of BLOCKED, both learned by getting
+  this wrong first:
+
+  * nextpnr prints `Max frequency` **twice** -- once after placement and again
+    after routing -- and the post-placement figure is much the worse of the
+    two (67.75 vs 126.84 MHz on the same run).  Only the report after
+    "Routing complete" is the result; reading the earlier one invents a
+    regression that is not there.
+  * the netlist in the example is not byte-identical to
+    `build-smpsd-openXC7`'s, so 97.3 and 126.84 are not measurements of the
+    same design.  Re-measure on the netlist the BLOCKED row actually names
+    before concluding the placer improved.
+
+  Worth knowing either way: if it passes, the row should move to DESIGNS so a
+  regression is caught, and if it does not, the row's number is stale and
+  should say what it is now.
+
 - `build-linux.yml` has never run.  Hosted runners may not have the memory or
   the time for this design; stage 2 finds out.

@@ -71,4 +71,71 @@ BR2_TARGET_ROOTFS_CPIO=y
 
 BR2_PACKAGE_BUSYBOX_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/../../../examples/vc707-litex-linux/rootfs/busybox.fragment"
 
-BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/board/litex_vexriscv/rootfs_overlay"
+# Measuring the link needs a load generator on the target.  ping RTT shows
+# whether interrupts are working (7-16 ms polling vs ~1 ms with an IRQ); this
+# is for throughput once they are.
+BR2_PACKAGE_IPERF3=y
+
+# CoreMark: a CPU number for this SoC that can be compared with published
+# ones, which iperf3 (a network measurement) cannot give.  Small, self
+# contained, and it runs from the NFS root without anything else installed.
+# Report it with the compiler flags and the clock rate beside it -- a bare
+# CoreMark score means nothing on its own.
+BR2_PACKAGE_COREMARK=y
+
+# A native toolchain on the board.  tcc was the answer when the target had
+# 8 MB of RAM; with 512 MB of DDR3 and the root filesystem on NFS rather
+# than an initramfs competing for that RAM, neither size nor space is the
+# constraint any more, so this is a real gcc instead.
+#
+# Buildroot has no native-gcc option -- gcc-final's target install copies
+# only the runtime libraries -- so package/gcc-native Canadian-crosses it,
+# the same shape binutils already uses to put as and ld on the target.
+# gcc has been written in C++ since 4.8, so a native gcc needs a C++ cross
+# compiler to build it -- and a board that compiles its own code wants C++
+# on it regardless.  This changes the toolchain, so it forces a full
+# rebuild of the rootfs; the working images are kept in
+# ~/vc707-artifacts/pre-cxx-rootfs in case this needs backing out.
+BR2_TOOLCHAIN_BUILDROOT_CXX=y
+BR2_PACKAGE_BINUTILS=y
+BR2_PACKAGE_BINUTILS_TARGET=y
+BR2_PACKAGE_GMP=y
+BR2_PACKAGE_MPFR=y
+BR2_PACKAGE_MPC=y
+BR2_PACKAGE_GCC_NATIVE=y
+
+# A native gcc without make is only half a toolchain: every source tree worth
+# building on the target ships a Makefile, CoreMark included -- its whole
+# build is linux/core_portme.mak, and without make the alternative is
+# retyping the compiler line by hand and hoping it matches the flags the
+# benchmark reports.  Which matters here: comparing a score from one board
+# against another is only meaningful if both were built the same way, and
+# building on each target is how that is guaranteed.
+BR2_PACKAGE_MAKE=y
+
+# Dropbear gives us sshd (and dbclient) in a fraction of openssh's size,
+# which matters in an initramfs that has to fit in RAM alongside the
+# kernel.  Dropbear refuses to authenticate an account with an empty
+# password, and buildroot leaves root's empty by default, so a password
+# has to be set or sshd is installed but unusable.
+BR2_PACKAGE_DROPBEAR=y
+BR2_TARGET_GENERIC_ROOT_PASSWD="vc707"
+
+
+# OpenSBI, the M-mode firmware for the VexRiscv-SMP SoC.  It replaces the 6 KB
+# emulator, which existed only because the plain VexRiscv SoC had no CLINT at
+# 0xF0010000 and no PLIC at 0xf0c00000 -- exactly what this platform expects,
+# and exactly what the SMP core provides.  litex-hub's fork, as the reference
+# config uses.
+BR2_TARGET_OPENSBI=y
+BR2_TARGET_OPENSBI_CUSTOM_GIT=y
+BR2_TARGET_OPENSBI_CUSTOM_REPO_URL="https://github.com/litex-hub/opensbi.git"
+BR2_TARGET_OPENSBI_CUSTOM_REPO_VERSION="1.3.1-linux-on-litex-vexriscv"
+BR2_TARGET_OPENSBI_PLAT="litex/vexriscv"
+BR2_TARGET_OPENSBI_INSTALL_DYNAMIC_IMG=n
+
+# Two overlays, applied in order.  Ours carries fixed dropbear host keys:
+# the rootfs is an initramfs in RAM, so without them dropbear generates a
+# fresh host key on every boot and every ssh client refuses to reconnect.
+BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/board/litex_vexriscv/rootfs_overlay $(TOPDIR)/../../examples/vc707-litex-linux/rootfs/overlay"
+BR2_ROOTFS_POST_BUILD_SCRIPT="$(TOPDIR)/../../examples/vc707-litex-linux/rootfs/post-build.sh"

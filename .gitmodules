@@ -63,3 +63,16 @@
 	path = litex-deps/litesdcard
 	url = https://github.com/enjoy-digital/litesdcard
 	shallow = true
+[submodule "litex-deps/pythondata-cpu-vexriscv-smp"]
+	path = litex-deps/pythondata-cpu-vexriscv-smp
+	url = https://github.com/litex-hub/pythondata-cpu-vexriscv-smp
+	shallow = true
+[submodule "rtl-deps/sd-card-controller"]
+	path = rtl-deps/sd-card-controller
+	url = https://github.com/mczerski/SD-card-controller.git
+[submodule "litex-deps/pythondata-cpu-rocket"]
+	path = litex-deps/pythondata-cpu-rocket
+	url = https://github.com/litex-hub/pythondata-cpu-rocket
+[submodule "System-Verilog-suite"]
+	path = System-Verilog-suite
+	url = https://github.com/jrrk2/System-Verilog-suite.git

@@ -49,7 +49,30 @@ DESIGNS=(
   # distributed RAM and carry chains throughout.  It was blocked until the tile
   # model learned to cut a block RAM at its boundary; it proves now, with the
   # yosys this repository pins.
+  # The SERV SoC WITH the SD card -- the design that works under Vivado and
+  # fails through the open flow.  The no-SD control beside it proves 2820/0,
+  # so the two together isolate the SD block exactly.
+  "vc707-serv-sd|examples/vc707-litex/build-serv-sd/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|"
+  # A gated counter with a comparison: the shape of the SD test's PHY-init
+  # delay and nothing else, written to isolate the one cluster that design
+  # still differs on -- a carry chain whose CYINIT comes from the fabric.
+  "vc707-gatedcount|.|examples/vc707-gatedcount/top.v|top|examples/vc707-gatedcount/top.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|-nobram"
+  # The minimal SD test: SDPHY and SDCore driven by a hardcoded FSM, no CPU
+  # and no bus.  It exists to be small enough that a difference list can be
+  # read line by line, and it is the first design here whose bitstream is
+  # known to work against a real card through BOTH flows -- Vivado's and this
+  # one -- so a difference it reports is a modelling gap, not a broken build.
+  "vc707-sdtest|examples/vc707-sdtest/build-openflow|vc707_sdtest.v|vc707_sdtest|vc707_sdtest.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|"
   "vc707-litex|examples/vc707-litex/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|"
+  # Formerly BLOCKED, now run through full LVS to see where they really stand.
+  # vc707-ethmin: reached the router but reported 18 hold violations; hold-fix
+  # (on by default above) clears them, so it now completes and can be LVSed.
+  # vc707-smpsd and vc707-litex-eth still fail earlier -- smpsd misses eth_tx_clk
+  # (setup, placement), litex-eth cannot route the transceiver clock -- so they
+  # surface as P&R FAILs here rather than being quietly set aside.
+  "vc707-ethmin|examples/vc707-ethmin|@sources.f|vc707_ethmin|vc707_ethmin.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|"
+  "vc707-smpsd|examples/vc707-litex-ddr-ethmin/build-smpsd-openXC7/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|"
+  "vc707-litex-eth|examples/vc707-litex-eth/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|"
 )
 
 # name | what the tile model would have to learn first.  Empty is the goal, not
@@ -74,21 +97,12 @@ NOT_YET=()
 #          would look like:
 #            pnr    place-and-route fails, with `marker` in the log
 #            equiv  it builds and extracts, but the equivalence check differs
-BLOCKED=(
-  # The picorv32 SoC with a gigabit MAC and a LiteEth SGMII PCS.  Its original
-  # blocker -- the IBUFDS_GTE2 binding -- is fixed, and it now packs, places
-  # and routes 6851 cells; what stops it is timing.  The violations are inside
-  # one clock domain (MAC transmit into a block RAM), not the asynchronous
-  # crossings the XDC declares, so they are not simply constraints nextpnr
-  # ignores; they are a real hold-time result on a real design.
-  # The same SoC as vc707-litex with a LiteEth SGMII PHY on the GTX.  It packs
-  # and places -- the transceiver, both PHY MMCMs and every clock buffer where
-  # Vivado put them -- and fails in the router: a BUFH drives one clock region
-  # and nothing confines its loads to it.  Vivado uses pblocks for that, which
-  # is region-constrained placement rather than a constraint to copy over.
-  "vc707-litex-eth|examples/vc707-litex-eth/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|pnr|Failed to route arc|the LiteEth PHY packs and places -- transceiver, both PHY MMCMs and every clock buffer where Vivado put them -- and does not route. The clock buffers are BUFGs rather than BUFHs, so no clock-region confinement is needed; the router still cannot find a path from the transceiver's clock outputs and falls into an unbounded whole-device search. See examples/vc707-litex-eth/README.md"
-  "vc707-ethmin|examples/vc707-ethmin|@sources.f|vc707_ethmin|vc707_ethmin.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|pnr|Hold/min time violation|nextpnr places and routes this SoC and then reports 18 hold-time violations, 14 of them on the MAC transmit path into a block RAM"
-)
+# All formerly-blocked designs were promoted into DESIGNS above so LVS runs on
+# them and their real state is measured, not assumed: vc707-ethmin (hold-fix
+# clears its 18 hold violations) now completes and is LVSed; vc707-smpsd and
+# vc707-litex-eth still fail earlier (setup on eth_tx_clk; routing the
+# transceiver clock) and surface as P&R FAILs there.
+BLOCKED=()
 
 # --list prints the design names as JSON, so a CI matrix can be generated from
 # this table rather than repeating it in a workflow file where the two would
@@ -184,7 +198,7 @@ for row in "${DESIGNS[@]}"; do
         annotate error "$name" "synthesis failed"; tail_log "$log"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
     fi
     if ! "$NEXTPNR_BIN" --device "$part" -o xdc="$dir/$xdc" --json "$d/gold.json" \
-            -o fasm="$d/design.fasm" -o placement="$d/placement.json" --router router2 >>"$log" 2>&1; then
+            -o fasm="$d/design.fasm" -o placement="$d/placement.json" --router router2 -o hold-fix >>"$log" 2>&1; then
         printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "place and route failed, see $log"
         annotate error "$name" "place and route failed"; tail_log "$log"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
     fi
@@ -257,7 +271,7 @@ for row in ${BLOCKED[@]+"${BLOCKED[@]}"}; do
     fi
 
     if ! "$NEXTPNR_BIN" --device "$part" -o xdc="$dir/$xdc" --json "$d/gold.json" \
-            -o fasm="$d/design.fasm" -o placement="$d/placement.json" --router router2 \
+            -o fasm="$d/design.fasm" -o placement="$d/placement.json" --router router2 -o hold-fix \
             >>"$log" 2>&1; then
         if [ "$stage" = pnr ] && grep -qF "$marker" "$log"; then
             printf '%-18s %10s %8s %8s   %s\n' "$name" blocked - - "$why"

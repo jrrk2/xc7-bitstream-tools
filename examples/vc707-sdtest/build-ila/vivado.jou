@@ -1,0 +1,12 @@
+#-----------------------------------------------------------
+# Vivado v2020.1.1 (64-bit)
+# SW Build 2960000 on Wed Aug  5 22:57:21 MDT 2020
+# IP Build 2956692 on Thu Aug  6 01:41:30 MDT 2020
+# Start of session at: Tue Sep  8 13:55:35 2026
+# Process ID: 1877580
+# Current directory: /home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila
+# Command line: vivado -mode batch -source vc707_sdtest.tcl
+# Log file: /home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vivado.log
+# Journal file: /home/jonathan/xc7-bitstream-tools/examples/vc707-sdtest/build-ila/vivado.jou
+#-----------------------------------------------------------
+source vc707_sdtest.tcl

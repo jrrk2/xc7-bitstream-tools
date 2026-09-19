@@ -1,0 +1,10 @@
+# Private host keys stay out of version control.  This repository is
+# replicated to GitHub, and a published host key lets anyone impersonate
+# the board to an ssh client that has trusted it.  Regenerate with:
+#
+#   dropbearkey -t ed25519 -f dropbear_ed25519_host_key
+#   dropbearkey -t rsa -s 2048 -f dropbear_rsa_host_key
+#
+# Without them dropbear still works -- it generates a key at first boot,
+# which is what we had before, so a fresh clone degrades rather than breaks.
+dropbear_*_host_key
