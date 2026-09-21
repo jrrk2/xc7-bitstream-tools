@@ -183,6 +183,9 @@ NFS_BOARD_IP   ?= 192.168.1.50
 # macOS alike.
 LITEX_REMOTE_IP ?= $(shell $(PYTHON) -c "import socket; s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('8.8.8.8', 80)); print(s.getsockname()[0]); s.close()" 2>/dev/null)
 VEXRISCV_V     ?= $(CURDIR)/litex-deps/pythondata-cpu-vexriscv/pythondata_cpu_vexriscv/verilog/VexRiscv.v
+# LITEX_LOCAL_IP is the board's own address when the default (192.168.1.50)
+# is on the wrong subnet -- a direct cable on 10.10.10.0/24, say.
+LITEX_LOCAL_IP ?=
 VEXRISCV_LINUX_V ?= $(CURDIR)/litex-deps/pythondata-cpu-vexriscv/pythondata_cpu_vexriscv/verilog/VexRiscv_Linux.v
 ETHMIN_PHY_V   ?= $(CURDIR)/examples/vc707-ethmin/rtl/liteeth_sgmii_phy.v
 LITEX_DIR      ?= examples/vc707-litex
@@ -544,7 +547,7 @@ vc707-telegraph-flash-vivado:
 # DDR variant is not a controlled comparison against a non-DDR one.
 LITEX_GEN = PATH="$(VIVADO_BIN):$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
 	--with-led-chaser --cpu-type $(LITEX_CPU) --flow vivado --build \
-	$(if $(LITEX_REMOTE_IP),--remote-ip $(LITEX_REMOTE_IP))
+	$(if $(LITEX_REMOTE_IP),--remote-ip $(LITEX_REMOTE_IP)) $(if $(LITEX_LOCAL_IP),--local-ip $(LITEX_LOCAL_IP))
 
 # Block RAM for main memory; the DDR variants take theirs from the SODIMM.
 LITEX_BRAM_RAM = --integrated-main-ram-size 0x4000
@@ -593,7 +596,7 @@ vc707-litex-ddr-ethmin: fasm2netlist nextpnr
 	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
 		--with-led-chaser --cpu-type vexriscv --with-ddr --with-ethmin-phy \
 		--flow openXC7 --no-compile-gateware --build \
-		$(if $(LITEX_REMOTE_IP),--remote-ip $(LITEX_REMOTE_IP)) \
+		$(if $(LITEX_REMOTE_IP),--remote-ip $(LITEX_REMOTE_IP)) $(if $(LITEX_LOCAL_IP),--local-ip $(LITEX_LOCAL_IP)) \
 		--output-dir $(LITEX_DDRETHMIN_DIR)/build-openXC7
 	cd $(LITEX_DDRETHMIN_DIR)/build-openXC7/gateware && $(PINNED_YOSYS) -q -p \
 		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
@@ -628,7 +631,7 @@ vc707-litex-ddr-ethmin-smpsd: fasm2netlist nextpnr
 		--with-led-chaser --cpu-type vexriscv_smp --cpu-variant linux --cpu-count 1 \
 		--hardware-breakpoints 0 --with-wishbone-memory --with-ddr --with-ethmin-phy \
 		--with-sdcard --flow openXC7 --no-compile-gateware --build \
-		$(if $(LITEX_REMOTE_IP),--remote-ip $(LITEX_REMOTE_IP)) \
+		$(if $(LITEX_REMOTE_IP),--remote-ip $(LITEX_REMOTE_IP)) $(if $(LITEX_LOCAL_IP),--local-ip $(LITEX_LOCAL_IP)) \
 		--output-dir $(SMPSD_DIR)
 	cd $(SMPSD_DIR)/gateware && $(PINNED_YOSYS) -q -p \
 		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
@@ -655,7 +658,7 @@ vc707-litex-linux: tools fasm2netlist nextpnr
 	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
 		--with-led-chaser --cpu-type vexriscv --cpu-variant linux \
 		--with-ddr --with-ethmin-phy --flow openXC7 --no-compile-gateware \
-		$(if $(LITEX_REMOTE_IP),--remote-ip $(LITEX_REMOTE_IP)) \
+		$(if $(LITEX_REMOTE_IP),--remote-ip $(LITEX_REMOTE_IP)) $(if $(LITEX_LOCAL_IP),--local-ip $(LITEX_LOCAL_IP)) \
 		--build --output-dir $(LINUX_BUILD)
 	cd $(LINUX_BUILD)/gateware && $(PINNED_YOSYS) -q -p \
 		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
