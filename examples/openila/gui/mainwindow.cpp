@@ -21,6 +21,8 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QScrollBar>
+#include <QSignalBlocker>
 #include <QSettings>
 #include <QSpinBox>
 #include <QStatusBar>
@@ -42,7 +44,28 @@ MainWindow::MainWindow()
     scroll->setWidget(wave_);
     scroll->setWidgetResizable(true);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    setCentralWidget(scroll);
+    // the time axis scrolls with its own bar under the traces (the scroll
+    // area's would scroll the widget, which is the whole capture wide)
+    hscroll_ = new QScrollBar(Qt::Horizontal);
+    auto *centre = new QWidget;
+    auto *cv = new QVBoxLayout(centre);
+    cv->setContentsMargins(0, 0, 0, 0);
+    cv->setSpacing(0);
+    cv->addWidget(scroll, 1);
+    cv->addWidget(hscroll_);
+    setCentralWidget(centre);
+    connect(wave_, &Waveform::viewChanged, this, [this] {
+        QSignalBlocker b(hscroll_);
+        int span = int(wave_->viewSpan());
+        hscroll_->setRange(0, qMax(0, wave_->total() - span));
+        hscroll_->setPageStep(qMax(1, span));
+        hscroll_->setSingleStep(qMax(1, span / 10));
+        hscroll_->setValue(int(wave_->viewT0()));
+    });
+    connect(hscroll_, &QScrollBar::valueChanged, this, [this](int v) {
+        QSignalBlocker b(hscroll_);   // scrollTo emits viewChanged; the bar already knows
+        wave_->scrollTo(v);
+    });
 
     // ---- left dock: connection and instance settings ----
     auto *setDock = new QDockWidget("ILA", this);

@@ -24,10 +24,17 @@ public:
     int cursor() const { return cursor_; }
     void setCursor(int t);
     void zoomFit();
-    void zoomTo(double t0, double pxPerSample) { t0_ = t0; pxPerSample_ = pxPerSample; clampView(); update(); }
+    void zoomTo(double t0, double pxPerSample) { t0_ = t0; pxPerSample_ = pxPerSample; clampView(); update(); emit viewChanged(); }
+
+    // the view, for a scroll bar: first visible sample, visible span, total
+    double viewT0() const { return t0_; }
+    double viewSpan() const { return (width() - nameW_) / pxPerSample_; }
+    int total() const { return samples_.size(); }
+    void scrollTo(double t0) { t0_ = t0; clampView(); update(); emit viewChanged(); }
 
 signals:
     void cursorMoved(int t);
+    void viewChanged();
 
 protected:
     void paintEvent(QPaintEvent *) override;
@@ -36,6 +43,7 @@ protected:
     void mouseMoveEvent(QMouseEvent *) override;
     void mouseReleaseEvent(QMouseEvent *) override;
     void keyPressEvent(QKeyEvent *) override;
+    void resizeEvent(QResizeEvent *) override;
 
 private:
     QVector<Signal> sigs_;

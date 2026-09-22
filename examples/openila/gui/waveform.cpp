@@ -54,6 +54,7 @@ void Waveform::setCursor(int t)
     if (xOf(cursor_) < nameW_ || xOf(cursor_ + 1) > width()) {   // keep it in view
         t0_ = cursor_ - (width() - nameW_) / pxPerSample_ / 2;
         clampView();
+        emit viewChanged();
     }
     update();
     emit cursorMoved(cursor_);
@@ -65,6 +66,7 @@ void Waveform::zoomFit()
     pxPerSample_ = double(qMax(1, width() - nameW_)) / samples_.size();
     t0_ = 0;
     update();
+    emit viewChanged();
 }
 
 void Waveform::clampView()
@@ -186,6 +188,7 @@ void Waveform::wheelEvent(QWheelEvent *e)
     t0_ = tAtMouse - (e->position().x() - nameW_) / pxPerSample_;
     clampView();
     update();
+    emit viewChanged();
 }
 
 void Waveform::mousePressEvent(QMouseEvent *e)
@@ -204,6 +207,7 @@ void Waveform::mouseMoveEvent(QMouseEvent *e)
         t0_ = dragT0_ - dx / pxPerSample_;
         clampView();
         update();
+        emit viewChanged();
     }
 }
 
@@ -230,4 +234,10 @@ void Waveform::keyPressEvent(QKeyEvent *e)
     case Qt::Key_F: zoomFit(); break;
     default: QWidget::keyPressEvent(e);
     }
+}
+
+void Waveform::resizeEvent(QResizeEvent *)
+{
+    clampView();
+    emit viewChanged();
 }

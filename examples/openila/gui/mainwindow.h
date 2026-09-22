@@ -4,7 +4,7 @@
 #include <QMainWindow>
 
 class QLineEdit; class QSpinBox; class QDoubleSpinBox; class QTableWidget; class QLabel; class QPlainTextEdit;
-class QPushButton; class QCheckBox; class QTimer; class QComboBox;
+class QPushButton; class QCheckBox; class QTimer; class QComboBox; class QScrollBar;
 
 class MainWindow : public QMainWindow
 {
@@ -16,6 +16,7 @@ public:
 private:
     Ila ila_;
     Waveform *wave_;
+    QScrollBar *hscroll_;
     QVector<Signal> sigs_;
     QVector<Bits> samples_;
     IlaStatus lastStatus_;
