@@ -856,7 +856,8 @@ validate-bitstream:
 # that maps gold cell names to the physical sites the extraction names cells
 # after.
 fasm2netlist:
-	cmake -S $(F2N_DIR) -B $(F2N_DIR)/build -DCMAKE_BUILD_TYPE=Release
+	cmake -S $(F2N_DIR) -B $(F2N_DIR)/build -DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_CXX_FLAGS="-include algorithm"
 	cmake --build $(F2N_DIR)/build --parallel 4
 
 lvs: fasm2netlist

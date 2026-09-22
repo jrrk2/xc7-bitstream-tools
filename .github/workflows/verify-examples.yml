@@ -171,7 +171,8 @@ jobs:
 
       - name: Build the extractor and the equivalence checker
         run: |
-          cmake -S fasm2netlist -B fasm2netlist/build -DCMAKE_BUILD_TYPE=Release
+          cmake -S fasm2netlist -B fasm2netlist/build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_FLAGS="-include algorithm"
           cmake --build fasm2netlist/build --parallel "$(nproc)"
 
       # The chipdb comes from the share tree, not the build tree.  cmake
