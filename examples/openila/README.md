@@ -64,3 +64,23 @@ combinational.  Trigger: `(sample & MASK) == (VALUE & MASK)`; MASK = 0
 triggers at once (a snapshot).  Re-arming is `arm` again (the script
 disarms first).  The flags in the header are read raw, so read the buffer
 when DONE; WIDTH >= AW+11 and DEPTH a power of two.
+
+## The GUI
+
+`gui/` is a Qt (5 or 6) front end in C++: the same driver as `openila.py`
+(openFPGALoader `--user-dr`, one child process per DR scan, asynchronous),
+a trigger table (per signal: `x`, `0`/`1`, or a hex value for a bus), a
+post-trigger count, arm / disarm / status / read with a poll that reads
+the buffer as soon as the ILA reports done, and a waveform view: bits as
+square waves, buses as hex boxes, wheel zooms about the mouse, drag pans,
+click places the cursor (values by the names; arrows step, `T` goes to the
+trigger, `F` fits).  Captures save and load as JSON and export as VCD.
+
+    cmake -S examples/openila/gui -B build-openila-gui && cmake --build build-openila-gui
+    build-openila-gui/openila-gui design_ila.json.map
+
+Settings (loader path, cable, TCK, WIDTH/DEPTH/chains, clock period, map)
+persist in `~/.config/openXC7/openila-gui.conf`.  `OPENILA_AUTOTEST=<path>`
+arms, reads, writes the first samples to that path and two screenshots
+beside it, then quits -- a smoke test; `gui/fake_openfpgaloader.py` stands
+in for the loader (set it as the loader path) so the test needs no board.
