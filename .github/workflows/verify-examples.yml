@@ -171,7 +171,7 @@ jobs:
 
       - name: Build the extractor and the equivalence checker
         run: |
-          CXXFLAGS='-include algorithm' make fasm2netlist
+          make fasm2netlist
 
       # The chipdb comes from the share tree, not the build tree.  cmake
       # writes a copy under himbaechel/uarch/xilinx/ as well, but that is not
