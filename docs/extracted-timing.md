@@ -1,5 +1,29 @@
 # Timing from the bitstream: the receive fault, and what was built to see it
 
+**Resolved, 2026-09-22.**  The fault was not timing.  The failing build's
+`CLBLM_R_X143Y65.SLICEM_X0.DLUT` carried two INIT features: the LUT2
+computing `core.dma.tx_adv` (the DMA->MAC advance, from `tx_axis_tvalid`
+and `tx_axis_tready`) and a hold-fix *detour* of `core.mem_b_wdata[10]`
+routed through the 6LUT of the same position, which nextpnr's detour search
+allowed because it checked wire binding and not pip availability.
+fasm2frames ORs the two, so `tx_adv` was also high whenever memory
+write-data bit 10 was 1: the DMA advanced while the MAC was not ready and
+the first bytes of a frame went missing, data-dependently -- hence the runs
+of good and bad frames, and the prints "helping".  Only the failing builds
+have a doubly-configured LUT; every working one has none.  Found with
+`examples/openila` on the frozen replay (`docs/frozen-replay.md`): the
+replay's FASM diff showed the LUT with two INITs, and the failing .bit read
+back holds their OR.  Fixed in nextpnr (the detour asks
+checkPipAvailForNet; the FASM writer refuses a LUT that holds a cell and a
+route-through) and guarded in `scripts/check_fasm_expressible.py` (a
+feature assigned twice with different values fails).  The same build, same
+seed, rebuilt: binds, boots, REPL works.  The static checks below were all
+clean because none of them looks at a LUT's *bitstream* INIT against both
+of its uses -- LVS compares the extracted function with the netlist's for
+the cell, and the extraction of an OR'ed INIT happens to match neither
+side's expectation in a way it reports.  What follows is the record as it
+stood.
+
 *2026-09-21.* Status notes for the open-flow Ethernet receive fault on the
 VC707 OCaml VM (`~/bytecode`, `fpga/vc707-ethmin`), and for the tooling
 that came out of chasing it: transport delays in the extractor, a calibrated
