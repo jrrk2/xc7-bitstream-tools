@@ -27,7 +27,7 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 PXPY = os.path.join(ROOT, ".venv", "bin", "python")
-F2F = os.path.join(ROOT, "prjxray", "utils", "fasm2frames.py")
+F2F = os.path.join(ROOT, "scripts", "fasm2frames_fast.py")
 
 
 def main():
@@ -43,6 +43,29 @@ def main():
     if not os.path.exists(fasm_path):
         print("missing FASM %s" % fasm_path)
         return 2
+
+    # A multi-bit feature assigned twice (a LUT's INIT from a cell and again
+    # from a route-through the router put on the same position) is not a
+    # missing feature -- fasm2frames ORs the two and both the cell and the
+    # routed net come out wrong.  That is what broke the VC707 processor's
+    # DMA->MAC handshake; refuse it here, before the bitstream.
+    seen, twice = {}, []
+    with open(fasm_path) as f:
+        for ln in f:
+            ln = ln.strip()
+            if not ln or ln.startswith("#") or "=" not in ln:
+                continue
+            feat, val = ln.split("=", 1)
+            feat = feat.strip()
+            if feat in seen and seen[feat] != val.strip():
+                twice.append(feat)
+            seen[feat] = val.strip()
+    if twice:
+        print("FAIL: %s assigns these features twice with different values (the assembler ORs them):"
+              % os.path.basename(fasm_path))
+        for feat in twice[:25]:
+            print("  " + feat)
+        return 1
 
     env = dict(os.environ)
     # The whole point: do NOT allow missing features.
