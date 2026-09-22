@@ -48,7 +48,7 @@ def main():
     # from a route-through the router put on the same position) is not a
     # missing feature -- fasm2frames ORs the two and both the cell and the
     # routed net come out wrong.  That is what broke the VC707 processor's
-    # DMA->MAC handshake for weeks; refuse it here, before the bitstream.
+    # DMA->MAC handshake; refuse it here, before the bitstream.
     seen, twice = {}, []
     with open(fasm_path) as f:
         for ln in f:
