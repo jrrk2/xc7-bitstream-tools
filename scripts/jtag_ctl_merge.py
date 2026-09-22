@@ -87,6 +87,8 @@ for cn, c in ctl['cells'].items():
     c2['connections'] = {k: [ctl_bit(b) for b in v] for k, v in c['connections'].items()}
     top['cells']['tctl.' + cn] = c2
 for n, d in ctl['netnames'].items():
+    if all(b in port_map or not isinstance(b, int) for b in d['bits']):
+        continue   # the design's own nets keep their names: an alias here could become nextpnr's name for them
     top['netnames']['tctl.' + n] = {'hide_name': d.get('hide_name', 0), 'attributes': d.get('attributes', {}),
                                     'bits': [ctl_bit(b) for b in d['bits']]}
 
