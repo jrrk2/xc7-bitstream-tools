@@ -1,4 +1,4 @@
-.PHONY: vc707-litex-linux-payload-check linux-payload-check vc707-serv-sdc vc707-serv-sdc-flash vc707-serv-sd-vivado vc707-serv-sd vc707-serv-sd-flash vc707-litex-ddr-ethmin-smpsd help setup litex-deps prjxray-db tftp-serve tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: vc707-litex-ddr-ethmin-smpsd-1gb vc707-litex-rocket vc707-litex-rocket-flash vc707-litex-linux-payload-check linux-payload-check vc707-serv-sdc vc707-serv-sdc-flash vc707-serv-sd-vivado vc707-serv-sd vc707-serv-sd-flash vc707-litex-ddr-ethmin-smpsd help setup litex-deps prjxray-db tftp-serve tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 # Values that are properties of a machine rather than of the project --
@@ -151,6 +151,8 @@ LINUX_MAC       ?= 10:e2:d5:00:00:07
 LINUX_TFTP_DIR  ?= $(HOME)/tftp-vc707/$(LINUX_MAC)
 SMPSD_MAC       ?= 10:e2:d5:53:4d:50
 SMPSD_TFTP_DIR  ?= $(HOME)/tftp-vc707/$(SMPSD_MAC)
+SMP1GB_MAC      ?= 10:e2:d5:31:47:42
+SMP1GB_TFTP_DIR ?= $(HOME)/tftp-vc707/$(SMP1GB_MAC)
 ROCKET_MAC      ?= 10:e2:d5:52:4f:43
 ROCKET_TFTP_DIR ?= $(HOME)/tftp-vc707/$(ROCKET_MAC)
 # Root over NFS, for development: the rootfs stops being a cpio rebuilt and
@@ -181,11 +183,11 @@ NFS_BOARD_IP   ?= 192.168.1.50
 # The UDP connect() sets a route and sends nothing; it just asks the kernel
 # which local address would be used to reach the internet.  Works on Linux and
 # macOS alike.
-LITEX_REMOTE_IP ?= $(shell $(PYTHON) -c "import socket; s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('8.8.8.8', 80)); print(s.getsockname()[0]); s.close()" 2>/dev/null)
-VEXRISCV_V     ?= $(CURDIR)/litex-deps/pythondata-cpu-vexriscv/pythondata_cpu_vexriscv/verilog/VexRiscv.v
 # LITEX_LOCAL_IP is the board's own address when the default (192.168.1.50)
 # is on the wrong subnet -- a direct cable on 10.10.10.0/24, say.
 LITEX_LOCAL_IP ?=
+LITEX_REMOTE_IP ?= $(shell $(PYTHON) -c "import socket; s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('8.8.8.8', 80)); print(s.getsockname()[0]); s.close()" 2>/dev/null)
+VEXRISCV_V     ?= $(CURDIR)/litex-deps/pythondata-cpu-vexriscv/pythondata_cpu_vexriscv/verilog/VexRiscv.v
 VEXRISCV_LINUX_V ?= $(CURDIR)/litex-deps/pythondata-cpu-vexriscv/pythondata_cpu_vexriscv/verilog/VexRiscv_Linux.v
 ETHMIN_PHY_V   ?= $(CURDIR)/examples/vc707-ethmin/rtl/liteeth_sgmii_phy.v
 LITEX_DIR      ?= examples/vc707-litex
@@ -646,6 +648,119 @@ vc707-litex-ddr-ethmin-smpsd: fasm2netlist nextpnr
 		--db $(PRJXRAY_DB) --fasm $(SMPSD_DIR)/gateware/$(LITEX_TOP).fasm \
 		--output $(SMPSD_OUT)
 	@echo "built $(SMPSD_OUT)"
+
+# The same SoC with a 64-bit DDR3 interface -- the full 1 GB of the VC707's
+# SODIMM -- and a 128 KiB L2.  Its own MAC (31:47:42, "1GB"), because its
+# device tree differs from the 512 MB build's and two SoCs sharing a MAC share
+# a payload directory.
+#
+# This is the design that historically missed its 100 MHz DDR clock: 75.59 MHz
+# with the tuned delay formula and the gate-wide timing weight.  It meets it
+# with the measured delay matrix and a higher weight -- 106.50 MHz -- so those
+# are baked in here rather than left to NEXTPNR_FLAGS.  See
+# docs/measured-delay-matrix.md.  The matrix is per device and cached next to
+# the build so a rerun does not remeasure.
+SMP1GB_DIR ?= $(LITEX_DDRETHMIN_DIR)/build-smpsd-ddr64-l2
+SMP1GB_OUT ?= litex_smpsd_1gb_vc707.bit
+SMP1GB_PNR_FLAGS ?= -o delay-matrix=$(LITEX_DDRETHMIN_DIR)/delay-matrix-xc7vx485t.txt --placer-heap-timingweight 100
+vc707-litex-ddr-ethmin-smpsd-1gb: fasm2netlist nextpnr
+	@scripts/pinned_yosys.sh >/dev/null
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
+	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
+	rm -rf $(SMP1GB_DIR)
+	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
+		--with-led-chaser --cpu-type vexriscv_smp --cpu-variant linux --cpu-count 1 \
+		--hardware-breakpoints 0 --with-wishbone-memory --with-ddr --with-ddr64 \
+		--with-ethmin-phy --with-sdcard --l2-size 131072 \
+		--flow openXC7 --no-compile-gateware --build \
+		$(if $(LITEX_REMOTE_IP),--remote-ip $(LITEX_REMOTE_IP)) $(if $(LITEX_LOCAL_IP),--local-ip $(LITEX_LOCAL_IP)) \
+		--output-dir $(SMP1GB_DIR)
+	cd $(SMP1GB_DIR)/gateware && $(PINNED_YOSYS) -q -p \
+		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+		$(SMPSD_RAM) $$(ls VexRiscvLitexSmpCluster_*.v) $(ETHMIN_PHY_V) $(LITEX_TOP).v
+	$(NEXTPNR_BIN) --device $(LITEX_PART) \
+		-o xdc=$(SMP1GB_DIR)/gateware/$(LITEX_TOP).xdc \
+		--json $(SMP1GB_DIR)/gateware/$(LITEX_TOP).json \
+		-o fasm=$(SMP1GB_DIR)/gateware/$(LITEX_TOP).fasm \
+		--router router2 $(SMP1GB_PNR_FLAGS)
+	$(MAKE) check-fasm FASM=$(SMP1GB_DIR)/gateware/$(LITEX_TOP).fasm PRJXRAY_DB=$(PRJXRAY_DB)
+	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 --part $(LITEX_PART) \
+		--db $(PRJXRAY_DB) --fasm $(SMP1GB_DIR)/gateware/$(LITEX_TOP).fasm \
+		--output $(SMP1GB_OUT)
+	@echo "built $(SMP1GB_OUT) -- payload dir is $(SMP1GB_TFTP_DIR)"
+
+# ---------------------------------------------------------------------------
+# Rocket RV64IMAC through the open flow.
+#
+# The no-FPU variant on purpose: `medium` is rv64imac where `linux`/`full`
+# are rv64imafdc.  What this target is for is getting the LARGEST netlist in
+# the project through yosys and nextpnr -- 47719 cells against the
+# VexRiscv-SMP SoC's 22396 -- and establishing what that costs.  It is a
+# BASELINE, not a bootable deliverable: no rv64 payload has ever completed
+# the OpenSBI handoff on this board.  Expect a bitstream that reaches the
+# BIOS and stops there.
+#
+# The root filesystem is NOT the obstacle -- vc707-nfsroot-rv64imac is a
+# buildroot tree built for this ISA and already exported to the board.  (The
+# Debian riscv64 tree beside it is rv64gc and could not run here, but that is
+# a different payload.)  What is missing is firmware: every OpenSBI on this
+# machine is linked at 0x40780000, the VexRiscv convention, and Rocket's
+# main_ram is at 0x80000000.  Entering firmware at an address it was not
+# linked for is silent -- no console, nothing to distinguish from a dead
+# core, which is exactly what the board does today.
+#
+# The flags are the ones recorded in rocket-sf-eth-75/litex.log, which is the
+# build the CI stretch entry's netlist came from -- including --sys-clk-freq
+# 75e6, which is what the "sf-75" in that name meant.
+ROCKET_DIR     ?= $(LITEX_DDRETHMIN_DIR)/build-rocket-openXC7
+ROCKET_OUT     ?= litex_rocket_vc707.bit
+ROCKET_SYS_CLK ?= 75e6
+ROCKET_CFG     ?= LitexConfig_medium_1_8
+ROCKET_VDIR     = $(CURDIR)/litex-deps/pythondata-cpu-rocket/pythondata_cpu_rocket/verilog
+# Both groups, as litex/soc/cores/cpu/rocket/core.py add_sources() does.  The
+# vsrc/ three are easy to miss and yosys does not fail gently without them:
+#   ERROR: Module `\plusarg_reader' referenced in module `\TLMonitor_28' ...
+# plusarg_reader and the TLMonitors it feeds are Chisel's simulation-side
+# constructs, but they are instantiated unconditionally, so the design does
+# not elaborate without the stubs.
+ROCKET_RTL      = $(ROCKET_VDIR)/generated-src/freechips.rocketchip.system.$(ROCKET_CFG).v \
+                  $(ROCKET_VDIR)/generated-src/freechips.rocketchip.system.$(ROCKET_CFG).behav_srams.v \
+                  $(ROCKET_VDIR)/vsrc/plusarg_reader.v \
+                  $(ROCKET_VDIR)/vsrc/AsyncResetReg.v \
+                  $(ROCKET_VDIR)/vsrc/EICG_wrapper.v
+
+vc707-litex-rocket: fasm2netlist nextpnr
+	@scripts/pinned_yosys.sh >/dev/null
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
+	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
+	rm -rf $(ROCKET_DIR)
+	PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) $(LITEX_DIR)/vc707_litex.py \
+		--with-led-chaser --cpu-type rocket --cpu-variant medium \
+		--cpu-mem-width 8 --with-ddr --with-ddr64 --with-ethmin-phy \
+		--sys-clk-freq $(ROCKET_SYS_CLK) \
+		--flow openXC7 --no-compile-gateware --build \
+		$(if $(LITEX_REMOTE_IP),--remote-ip $(LITEX_REMOTE_IP)) $(if $(LITEX_LOCAL_IP),--local-ip $(LITEX_LOCAL_IP)) \
+		--output-dir $(ROCKET_DIR)
+	# Wide, shallow AXI buffers become distributed RAM without this, at a cost
+	# of thousands of LUTs each.  Selected by shape, so regenerating the SoC
+	# does not silently leave them unannotated.
+	$(PYTHON) scripts/rocket_bramstyle.py $(ROCKET_DIR)/gateware/$(LITEX_TOP).v
+	cd $(ROCKET_DIR)/gateware && $(PINNED_YOSYS) -q -p \
+		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+		$(ROCKET_RTL) $(ETHMIN_PHY_V) $(LITEX_TOP).v
+	$(NEXTPNR_BIN) --device $(LITEX_PART) \
+		-o xdc=$(ROCKET_DIR)/gateware/$(LITEX_TOP).xdc \
+		--json $(ROCKET_DIR)/gateware/$(LITEX_TOP).json \
+		-o fasm=$(ROCKET_DIR)/gateware/$(LITEX_TOP).fasm \
+		--router router2 $(NEXTPNR_FLAGS) --timing-allow-fail
+	$(MAKE) check-fasm FASM=$(ROCKET_DIR)/gateware/$(LITEX_TOP).fasm PRJXRAY_DB=$(PRJXRAY_DB)
+	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 --part $(LITEX_PART) \
+		--db $(PRJXRAY_DB) --fasm $(ROCKET_DIR)/gateware/$(LITEX_TOP).fasm \
+		--output $(ROCKET_OUT)
+	@echo "built $(ROCKET_OUT) -- baseline only, see the note above this target"
+
+vc707-litex-rocket-flash:
+	$(OFL) --cable digilent --freq 15000000 $(ROCKET_OUT)
 
 # Linux, through the open flow.  See examples/vc707-litex-linux/README.md.
 vc707-litex-linux: tools fasm2netlist nextpnr

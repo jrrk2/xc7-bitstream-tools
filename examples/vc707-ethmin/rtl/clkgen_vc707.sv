@@ -8,7 +8,10 @@
 module clkgen_vc707 #(
     // clk_mac = VCO / MAC_DIV.  The VCO here is 1000 MHz, so 8 -> 125 MHz,
     // 10 -> 100 MHz, 16 -> 62.5 MHz.
-    parameter integer MAC_DIV = 8
+    parameter integer MAC_DIV = 8,
+    // clk_sys = VCO / SYS_DIV: 40 -> 25 MHz (the default, unchanged),
+    // 20 -> 50 MHz, 10 -> 100 MHz.
+    parameter real SYS_DIV = 40.000
 ) (
     input  IO_CLK_P,
     input  IO_CLK_N,
@@ -32,9 +35,10 @@ module clkgen_vc707 #(
     .O (io_clk_buf)
   );
 
-  // 200 MHz x5 = 1 GHz VCO; /40 = 25 MHz.  The open flow (nextpnr, no proper
+  // 200 MHz x5 = 1 GHz VCO; /SYS_DIV.  The open flow (nextpnr, no proper
   // hold STA) does not reliably close 50 MHz for the debug-module CDC, so the
-  // core clock is set to 25 MHz here at the source -- no post-route fasm patch.
+  // core clock defaults to 25 MHz here at the source -- no post-route fasm
+  // patch.  A design without that CDC can ask for more with SYS_DIV.
   MMCME2_ADV #(
     .BANDWIDTH          ("OPTIMIZED"),
     .COMPENSATION       ("ZHOLD"),
@@ -45,7 +49,7 @@ module clkgen_vc707 #(
     .CLKOUT1_DIVIDE     (MAC_DIV),
     .CLKOUT1_PHASE      (0.000),
     .CLKOUT1_DUTY_CYCLE (0.500),
-    .CLKOUT0_DIVIDE_F   (40.000),
+    .CLKOUT0_DIVIDE_F   (SYS_DIV),
     .CLKOUT0_PHASE      (0.000),
     .CLKOUT0_DUTY_CYCLE (0.500),
     .CLKIN1_PERIOD      (5.000)

@@ -23,7 +23,10 @@ def family_for_part(part):
 def fasm_to_bit(part, database_root, fasm, allow_missing_features=False):
     root = Path(__file__).resolve().parents[1]
     prjxray = root / "prjxray"
-    fasm2frames = prjxray / "utils" / "fasm2frames.py"
+    # The wrapper, not prjxray's script directly: it swaps in the
+    # line-oriented FASM reader, which is 52x faster on the parse and
+    # was 83% of this conversion's runtime.  See scripts/fasm_fast.py.
+    fasm2frames = root / "scripts" / "fasm2frames_fast.py"
     frames2bit = prjxray / "build" / "tools" / "xc7frames2bit"
     family = family_for_part(part)
     part_dir = database_root / family / part

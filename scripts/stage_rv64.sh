@@ -16,15 +16,28 @@ SRC=${1:-$HOME/vc707-work/rv64-payload}
 MODE=${MODE:-bin}
 DST=${2:-$HOME/tftp-vc707/10:e2:d5:00:00:07}
 
-for f in Image opensbi.bin rv64.dtb boot.json; do
-    [ -f "$SRC/$f" ] || { echo "missing $SRC/$f"; exit 2; }
-done
+if [ "$MODE" = bin ]; then
+    [ -f "$SRC/boot.bin" ] || { echo "missing $SRC/boot.bin"; exit 2; }
+else
+    for f in Image opensbi.bin rv64.dtb boot.json; do
+        [ -f "$SRC/$f" ] || { echo "missing $SRC/$f"; exit 2; }
+    done
+fi
 
 # The BIOS validates nothing about boot.json beyond parsing it: r1 defaults
 # to 0, and jumping to OpenSBI with a null FDT pointer is a perfectly legal
 # payload that produces total silence -- no console, no CPU list, nothing to
 # distinguish it from a dead core.  It cost a boot cycle to find.  Check here
 # what nothing downstream will.
+if [ "$MODE" = bin ]; then
+    # Nothing to cross-check: the dtb is inside the firmware (FW_FDT_PATH),
+    # so there is no r1 to get wrong and no gap between images to leave
+    # unwritten.  That is the whole point of this mode.
+    echo "== checking the payload"
+    sz=$(stat -c%s "$SRC/boot.bin")
+    [ "$sz" -gt 1000000 ] || { echo "boot.bin is only $sz bytes; that is not a payload"; exit 2; }
+    echo "   boot.bin $sz bytes, self-contained (OpenSBI + dtb + kernel)"
+else
 echo "== checking the payload"
 python3 - "$SRC" <<'CHECK'
 import json, os, sys
@@ -56,21 +69,37 @@ if dtb:
 print("   %d images, no overlaps, r1 -> %s, dtb magic ok" % (len(regs), dtb[0] if dtb else "n/a"))
 CHECK
 [ $? -eq 0 ] || exit 1
+fi
 
 echo "== saving the rv32 payload (once)"
 for f in Image boot.json opensbi.bin; do
     [ -f "$DST/$f" ] && [ ! -f "$DST/$f.rv32" ] && cp -a "$DST/$f" "$DST/$f.rv32" && echo "   kept $f.rv32"
 done
 
-echo "== staging rv64"
-cp -a "$SRC"/Image "$SRC"/opensbi.bin "$SRC"/rv64.dtb "$SRC"/boot.json "$DST/"
+echo "== staging rv64 ($MODE mode)"
 # The rv32 dtb and initramfs must not be reachable: the BIOS boots whatever
 # boot.json names, but a stale rootfs.cpio alongside is how a "fixed" board
 # quietly boots the old world.
 rm -f "$DST/rootfs.cpio"
 
-echo "== staged:"
-for f in Image opensbi.bin rv64.dtb boot.json; do
-    printf "   %-12s %s bytes\n" "$f" "$(stat -c%s "$DST/$f")"
-done
-echo "== boot.json:"; sed 's/^/   /' "$DST/boot.json"
+if [ "$MODE" = bin ]; then
+    cp -a "$SRC"/boot.bin "$DST/"
+    # AND the boot.json must go.  The BIOS tries boot.json FIRST and only
+    # falls through to boot.bin if it is absent, so leaving one behind means
+    # bin mode never runs -- which is exactly what happened the first time
+    # this script staged a Rocket payload.
+    [ -f "$DST/boot.json" ] && ! [ -f "$DST/boot.json.rv64-3file" ] && \
+        mv "$DST/boot.json" "$DST/boot.json.rv64-3file" && \
+        echo "   moved boot.json aside: the BIOS prefers it over boot.bin"
+    rm -f "$DST/boot.json"
+    echo "== staged:"
+    printf "   %-12s %s bytes\n" boot.bin "$(stat -c%s "$DST/boot.bin")"
+    echo "   no boot.json: the BIOS will fall through to boot.bin"
+else
+    cp -a "$SRC"/Image "$SRC"/opensbi.bin "$SRC"/rv64.dtb "$SRC"/boot.json "$DST/"
+    echo "== staged:"
+    for f in Image opensbi.bin rv64.dtb boot.json; do
+        printf "   %-12s %s bytes\n" "$f" "$(stat -c%s "$DST/$f")"
+    done
+    echo "== boot.json:"; sed 's/^/   /' "$DST/boot.json"
+fi

@@ -75,7 +75,67 @@ REMOTE_IP = "192.168.1.106"
 # the Sonata Linux triage in ~/sonata-linux is another -- so this one is given
 # an address of its own.  Two boards sharing a MAC is not a subtle failure to
 # debug later: ARP resolves to whichever answered last.
+
 MAC_ADDRESS = 0x10e2d5000007
+
+# ...and, for the same reason one board needs its own MAC, each SoC VARIANT
+# needs one too.  The BIOS network-boots from a directory named after the MAC,
+# so two builds sharing a MAC share a payload directory and staging one
+# overwrites the other.  That failure does not look like a MAC problem from
+# the console: the board boots, fetches a payload built for a different SoC,
+# and either resets on an illegal instruction (an rv64 image on an rv32 core)
+# or jumps into a kernel whose device tree describes another SoC's CSR map.
+# Both cost an afternoon to work back from.
+#
+# The convention: the low three bytes spell the variant in ASCII, so the MAC
+# says what it is at a glance -- 10:e2:d5:53:4d:50 is "SMP", and its payload
+# lives in ~/tftp-vc707/10:e2:d5:53:4d:50/.  The OUI half stays LiteEth's.
+#
+# vexriscv/linux is the exception and keeps 00:00:07.  The known-good
+# snapshot in ~/xc7-vc707-known-good pairs with that address: its emulator
+# and dtb encode this SoC's CSR map, and its PROVENANCE file names the
+# directory.  Moving it would invalidate a record kept precisely because it
+# cannot be rebuilt.
+MAC_TAG_BY_CPU = {
+    ("vexriscv",     "linux"): None,    # keeps 00:00:07, see above
+    ("vexriscv_smp", "linux"): "SMP",
+    ("rocket",       "linux"): "ROC",
+    ("serv",          None):   "SRV",
+}
+
+# The same SoC with a different memory size needs a different device tree,
+# and a device tree is payload -- so it needs a different MAC, or the two
+# builds overwrite each other's dtb in one TFTP directory.  That is not a
+# hypothetical: the 512 MB SMP build booted a 1 GB dtb left behind by its
+# sibling and died in the memory map, one line after the reserved regions.
+# Keyed on (cpu, variant, ddr64, cores); anything not listed here falls back
+# to the table above, so the existing MACs do not move.
+MAC_TAG_BY_CONFIG = {
+    ("vexriscv_smp", "linux", True, 1): "1GB",   # 10:e2:d5:31:47:42
+    ("vexriscv_smp", "linux", True, 2): "SM2",   # 10:e2:d5:53:4d:32
+}
+
+
+def mac_for_cpu(cpu_type, cpu_variant, with_ddr64=False, cpu_count=1):
+    """A MAC that differs whenever the payload would have to differ.
+
+    An unlisted combination spells the first three letters of its CPU name
+    rather than falling back on 00:00:07: a wrong-but-unique MAC shows up as
+    a board that cannot find its payload, which is far louder than one that
+    silently finds somebody else's.
+    """
+    full = (cpu_type, cpu_variant, bool(with_ddr64), int(cpu_count or 1))
+    key = (cpu_type, cpu_variant)
+    if full in MAC_TAG_BY_CONFIG:
+        tag = MAC_TAG_BY_CONFIG[full]
+    elif key in MAC_TAG_BY_CPU:
+        tag = MAC_TAG_BY_CPU[key]
+        if tag is None:
+            return MAC_ADDRESS
+    else:
+        tag = (cpu_type or "unk")[:3].upper()
+    tag = (tag + "XXX")[:3]
+    return (MAC_ADDRESS >> 24 << 24) | int.from_bytes(tag.encode("ascii"), "big")
 
 # ...and, for the same reason, its own TFTP server rather than the system one
 # on port 69.  That server's root holds the Sonata triage's boot.json, and the
@@ -356,7 +416,7 @@ class BaseSoC(SoCCore):
                  flow="unknown",
                  local_ip=LOCAL_IP, remote_ip=REMOTE_IP,
                  mac_address=MAC_ADDRESS, tftp_port=TFTP_PORT,
-                 with_ddr64=False, **kwargs):
+                 with_ddr64=False, with_dhcp=False, **kwargs):
         platform = xilinx_vc707.Platform()
 
         self.crg = _CRGDDR(platform, sys_clk_freq) if with_ddr \
@@ -473,8 +533,11 @@ class BaseSoC(SoCCore):
             # Naming both addresses here is what puts LOCALIP*/REMOTEIP* in
             # the generated software config.  Left unset, the BIOS falls back
             # to its own compiled-in defaults and the remote is 192.168.1.100.
+            # With --with-dhcp the local address is not discarded: it becomes
+            # the fallback the BIOS uses when no DHCP server answers.
             self.add_ethernet(phy=self.ethphy, local_ip=local_ip,
-                              remote_ip=remote_ip, mac_address=mac_address)
+                              remote_ip=remote_ip, mac_address=mac_address,
+                              with_dhcp=with_dhcp)
 
             # boot.c takes TFTP_SERVER_PORT from a #ifndef, so a constant here
             # redirects the BIOS's network boot without patching the BIOS.
@@ -515,7 +578,8 @@ class BaseSoC(SoCCore):
                 refclk_pads = platform.request("sgmii_clock"),
                 data_pads   = data_pads)
             self.add_ethernet(phy=self.ethphy, local_ip=local_ip,
-                              remote_ip=remote_ip, mac_address=mac_address)
+                              remote_ip=remote_ip, mac_address=mac_address,
+                              with_dhcp=with_dhcp)
             self.add_constant("TFTP_SERVER_PORT", tftp_port)
 
             # Placement for the black box's hard blocks.  Importing the
@@ -630,8 +694,14 @@ def main():
                                help="IP address the SoC answers on.")
     parser.add_target_argument("--remote-ip", default=REMOTE_IP,
                                help="IP address the BIOS network-boots from (a TFTP server).")
-    parser.add_target_argument("--mac-address", default=MAC_ADDRESS, type=lambda v: int(v, 0),
-                               help="MAC address the SoC answers to.")
+    parser.add_target_argument("--mac-address", default=None, type=lambda v: int(v, 0),
+                               help="MAC address the SoC answers to.  Defaults to one chosen "
+                                    "from the CPU type and variant, so that two builds needing "
+                                    "different payloads cannot share a TFTP directory.")
+    parser.add_target_argument("--with-dhcp", action="store_true",
+                               help="Ask for an address over DHCP at boot, keeping --local-ip "
+                                    "as the fallback when nothing answers.  Without this the "
+                                    "address is fixed in the gateware.")
     parser.add_target_argument("--tftp-port", default=TFTP_PORT, type=int,
                                help="UDP port the BIOS network-boots from.")
     parser.add_target_argument("--with-ethmin-phy", action="store_true",
@@ -675,6 +745,16 @@ def main():
     if sys_clk_freq is None:
         sys_clk_freq = DDR_SYS_CLK_FREQ if args.with_ddr else SYS_CLK_FREQ
 
+    mac_address = args.mac_address
+    if mac_address is None:
+        mac_address = mac_for_cpu(getattr(args, "cpu_type", None),
+                                  getattr(args, "cpu_variant", None),
+                                  with_ddr64=args.with_ddr64,
+                                  cpu_count=getattr(args, "cpu_count", 1))
+    print("MAC address: %012x  (TFTP dir %s)" % (
+        mac_address, ":".join("%02x" % ((mac_address >> b) & 0xff)
+                              for b in range(40, -8, -8))))
+
     soc = BaseSoC(
         sys_clk_freq=sys_clk_freq,
         with_led_chaser=args.with_led_chaser,
@@ -688,8 +768,9 @@ def main():
         sdcard_debug=args.sdcard_debug,
         local_ip=args.local_ip,
         remote_ip=args.remote_ip,
-        mac_address=args.mac_address,
+        mac_address=mac_address,
         tftp_port=args.tftp_port,
+        with_dhcp=args.with_dhcp,
         flow=args.flow,
         **parser.soc_argdict)
     builder = Builder(soc, **parser.builder_argdict)

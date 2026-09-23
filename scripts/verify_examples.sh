@@ -71,6 +71,12 @@ DESIGNS=(
   # (setup, placement), litex-eth cannot route the transceiver clock -- so they
   # surface as P&R FAILs here rather than being quietly set aside.
   "vc707-ethmin|examples/vc707-ethmin|@sources.f|vc707_ethmin|vc707_ethmin.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|"
+  # The same SoC with a processor whose instruction set is OCaml 4.14
+  # bytecode in place of the picorv32: block RAM with contents, carry chains,
+  # DSPs, an MMCM, a GTX and HP I/O in both directions, at a size worth
+  # timing a placer against.  Its $readmemh paths are relative, hence the
+  # directory.
+  "vc707-ocaml|examples/vc707-ocaml|@sources.f|vc707_ethmin_vm|vc707_ethmin_vm.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|"
   "vc707-smpsd|examples/vc707-litex-ddr-ethmin/build-smpsd-openXC7/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|"
   "vc707-litex-eth|examples/vc707-litex-eth/gateware|@sources.f|xilinx_vc707|xilinx_vc707.xdc|xc7vx485tffg1761-2|xc7vx485t|virtex7|"
 )
