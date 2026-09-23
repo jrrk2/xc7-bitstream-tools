@@ -13,12 +13,20 @@ The ROM here holds the netboot loader: it does DHCP, ARP and TFTP in OCaml,
 fetches a program image over Ethernet and runs it. That makes this design a
 useful thing to build from source — it exercises block RAM with contents,
 carry chains, DSPs, an MMCM, a GTX, HP I/O in both directions and two clock
-domains, and it is big enough (some 12,500 cells, 168 RAMB36s) to be worth
-timing a placer against.
+domains, and it is big enough (some 14,300 cells, 168 RAMB36s, 20 DSP48E1s)
+to be worth timing a placer against.
+
+Floating point is in hardware: Berkeley HardFloat's cores behind the
+processor's trap port, so `caml_add_float` and its siblings are answered by
+silicon rather than by a library.  The FPU is proved against the host's own
+doubles in the source repository -- every operation, bit for bit.
 
 ## What is here
 
     vm_sv2v.v            the processor, converted from SystemVerilog
+    fpu_hardfloat.v      a double-precision FPU on the processor's trap port
+    recode64.v           IEEE-754 <-> HardFloat's recoded format
+    hardfloat.v          Berkeley HardFloat's cores (BSD)
     ethmin_vm_core.v     code ROM, I/O map, packet window, boot sequencer
     program_bram.v       the code ROM's block RAM
     vc707_ethmin_vm.v    the top: clocking, Ethernet, reset, LEDs
@@ -45,6 +53,18 @@ Regenerate it with the same command when the processor changes. The `.hex`
 images come from that repository's `tools/progimage.sh io/netboot.ml`.
 
 ## The clock
+
+This example asks for **50 MHz**, which is what it closes through the open
+flow with the FPU in it:
+
+    100 MHz   Vivado closes it (WNS +0.559); the open flow reaches 71.8
+     75 MHz   61.0 MHz achieved   fails
+     62.5 MHz 59.5 MHz achieved   fails, and leaves two hold violations
+     50 MHz   62.2 MHz achieved   passes, no hold violations   <- shipped
+
+Without the FPU the same design reaches about 72-77 MHz through the open
+flow, varying with placement -- which is why 75 MHz, tried first, was too
+close to the edge to ship even then.
 
 `SYS_DIV` divides a 1 GHz VCO for the processor's clock, and `CLK_HZ` must
 agree with it — the UART divider and the millisecond timer are counted from

@@ -8,6 +8,12 @@
 # The processor, converted from SystemVerilog by sv2v (see README.md)
 vm_sv2v.v
 
+# Floating point: Berkeley HardFloat's cores, the IEEE boundary, and the
+# wrapper the processor's trap port talks to
+fpu_hardfloat.v
+recode64.v
+hardfloat.v
+
 # The SoC around it: code ROM, I/O map, packet window, boot sequencer
 program_bram.v
 ethmin_vm_core.v

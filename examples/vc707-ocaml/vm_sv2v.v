@@ -240,8 +240,47 @@ module ocaml4142_vm_rtl (
 	reg [VALUEW - 1:0] temp_return_env;
 	reg [7:0] temp_extra_args;
 	reg [7:0] op_cycle_count;
+	reg fp_boxes;
+	reg fp_from_int;
+	reg fp_negate;
+	reg [3:0] fp_op;
+	reg fp_unary;
+	task automatic fp_begin;
+		input reg [3:0] op;
+		input reg unary;
+		input reg from_int;
+		input reg boxes;
+		input reg negate;
+		begin
+			fp_op <= op;
+			fp_unary <= unary;
+			fp_from_int <= from_int;
+			fp_boxes <= boxes;
+			fp_negate <= negate;
+			state <= (from_int ? 7'd90 : 7'd88);
+		end
+	endtask
 	localparam [7:0] TRAP_IO_READ = 8'h01;
 	localparam [7:0] TRAP_IO_WRITE = 8'h02;
+	localparam [7:0] TRAP_FP_A = 8'h10;
+	localparam [7:0] TRAP_FP_B = 8'h11;
+	localparam [7:0] TRAP_FP_EXEC = 8'h12;
+	localparam [7:0] TRAP_FP_HI = 8'h13;
+	localparam [3:0] FP_ADD = 4'd0;
+	localparam [3:0] FP_SUB = 4'd1;
+	localparam [3:0] FP_MUL = 4'd2;
+	localparam [3:0] FP_DIV = 4'd3;
+	localparam [3:0] FP_SQRT = 4'd4;
+	localparam [3:0] FP_LT = 4'd5;
+	localparam [3:0] FP_LE = 4'd6;
+	localparam [3:0] FP_EQ = 4'd7;
+	localparam [3:0] FP_NEG = 4'd8;
+	localparam [3:0] FP_ABS = 4'd9;
+	localparam [3:0] FP_OF_INT = 4'd10;
+	localparam [3:0] FP_TO_INT = 4'd11;
+	localparam signed [31:0] DOUBLE_TAG = 253;
+	reg [VALUEW - 1:0] fp_lo;
+	reg [VALUEW - 1:0] fp_hi;
 	reg [15:0] str_words;
 	reg [1:0] str_byte;
 	reg [7:0] byte_value;
@@ -382,34 +421,23 @@ module ocaml4142_vm_rtl (
 			accu <= hm_rd_a;
 	endtask
 	task caml_ml_open_descriptor_in;
-		begin
-			$display("caml_ml_open_descriptor_in");
-			accu <= 32'hc0010000;
-		end
+		accu <= 32'hc0010000;
 	endtask
 	task caml_ml_open_descriptor_out;
-		begin
-			$display("caml_ml_open_descriptor_out");
-			accu <= 32'hf00d0000;
-		end
+		accu <= 32'hf00d0000;
 	endtask
 	task caml_ml_output_char;
 		begin
-			$display("caml_ml_output_char %c (%d)", Int_val(st_rd_a), Int_val(st_rd_a));
 			putc_valid <= 1'b1;
 			putc_char <= st_rd_a[8:1];
 			accu <= Val_int(0);
 		end
 	endtask
 	task caml_ml_flush;
-		begin
-			$display("caml_ml_flush");
-			accu <= Val_int(0);
-		end
+		accu <= Val_int(0);
 	endtask
 	task caml_string_get;
 		begin
-			$display("caml_string_get %x %x", accu, Int_val(st_rd_a));
 			temp_heap_addr <= (Heap_index_of_ptr(accu) + 1) + st_rd_a[HEAP_AW + 2:3];
 			str_byte <= st_rd_a[2:1];
 			state <= 7'd80;
@@ -440,7 +468,8 @@ module ocaml4142_vm_rtl (
 			8'd43: alloc_need = 3 + nvars;
 			8'd44: alloc_need = (3 * imm) + nvars;
 			8'd42: alloc_need = (extra_args < imm ? 5 + extra_args : 0);
-			8'd93: alloc_need = (imm == 16'h0052 ? (Int_val(accu) >> 2) + 2 : 0);
+			8'd93: alloc_need = (imm == 16'h0052 ? (Int_val(accu) >> 2) + 2 : ((((imm == 16'h012f) || (imm == 16'h0000)) || (imm == 16'h0157)) || (imm == 16'h0077) ? 3 : 0));
+			8'd94: alloc_need = ((((imm == 16'h0003) || (imm == 16'h0166)) || (imm == 16'h0118)) || (imm == 16'h0054) ? 3 : 0);
 			default: alloc_need = 0;
 		endcase
 	end
@@ -482,6 +511,13 @@ module ocaml4142_vm_rtl (
 		end
 		if (reset) begin
 			putc_char <= 1'sb0;
+			fp_op <= 1'sb0;
+			fp_unary <= 1'b0;
+			fp_from_int <= 1'b0;
+			fp_boxes <= 1'b0;
+			fp_negate <= 1'b0;
+			fp_lo <= 1'sb0;
+			fp_hi <= 1'sb0;
 			trap_valid <= 1'b0;
 			trap_prim <= 1'sb0;
 			trap_arg0 <= 1'sb0;
@@ -543,7 +579,6 @@ module ocaml4142_vm_rtl (
 						offset <= 1'sb0;
 						alloc_wosize <= 1'sb0;
 						alloc_tag <= 1'sb0;
-						$display("  at fetch, acc=0x%08x, pc=%d, bytecode=%d", accu, pc, code_rdata);
 						pc <= pc + 1;
 						state <= 7'd1;
 					end
@@ -1315,14 +1350,21 @@ module ocaml4142_vm_rtl (
 										state <= 7'd81;
 									end
 									16'h005a: accu <= VAL_UNIT;
+									16'h012f:
+										fp_begin(FP_NEG, 1'b1, 1'b0, 1'b1, 1'b0);
+									16'h0000:
+										fp_begin(FP_ABS, 1'b1, 1'b0, 1'b1, 1'b0);
+									16'h0157:
+										fp_begin(FP_SQRT, 1'b1, 1'b0, 1'b1, 1'b0);
+									16'h0077:
+										fp_begin(FP_OF_INT, 1'b1, 1'b1, 1'b1, 1'b0);
+									16'h00e1:
+										fp_begin(FP_TO_INT, 1'b1, 1'b0, 1'b0, 1'b0);
 									16'h0084: begin
 										accu <= Val_int(oo_id);
 										oo_id <= oo_id + 1;
 									end
-									default: begin
-										$display("Unsupported C_CALL1: 0x%x", imm);
-										accu <= VAL_UNIT;
-									end
+									default: accu <= VAL_UNIT;
 								endcase
 							8'd94:
 								if (!rd_phase) begin
@@ -1347,6 +1389,22 @@ module ocaml4142_vm_rtl (
 											streq_negate <= imm == 16'h0163;
 											state <= 7'd76;
 										end
+										16'h0003:
+											fp_begin(FP_ADD, 1'b0, 1'b0, 1'b1, 1'b0);
+										16'h0166:
+											fp_begin(FP_SUB, 1'b0, 1'b0, 1'b1, 1'b0);
+										16'h0118:
+											fp_begin(FP_MUL, 1'b0, 1'b0, 1'b1, 1'b0);
+										16'h0054:
+											fp_begin(FP_DIV, 1'b0, 1'b0, 1'b1, 1'b0);
+										16'h0068:
+											fp_begin(FP_EQ, 1'b0, 1'b0, 1'b0, 1'b0);
+										16'h0130:
+											fp_begin(FP_EQ, 1'b0, 1'b0, 1'b0, 1'b1);
+										16'h00ee:
+											fp_begin(FP_LT, 1'b0, 1'b0, 1'b0, 1'b0);
+										16'h00e6:
+											fp_begin(FP_LE, 1'b0, 1'b0, 1'b0, 1'b0);
 										16'h0194: begin
 											trap_valid <= 1'b1;
 											trap_prim <= TRAP_IO_WRITE;
@@ -1354,10 +1412,7 @@ module ocaml4142_vm_rtl (
 											trap_arg1 <= Int_val(st_rd_a);
 											state <= 7'd81;
 										end
-										default: begin
-											$display("Unsupported C_CALL2: 0x%x", imm);
-											accu <= VAL_UNIT;
-										end
+										default: accu <= VAL_UNIT;
 									endcase
 									sp = sp + 1;
 								end
@@ -1391,7 +1446,6 @@ module ocaml4142_vm_rtl (
 									end
 								end
 								else begin
-									$display("Unsupported C_CALL3: 0x%x", imm);
 									accu <= VAL_UNIT;
 									sp = sp + 2;
 								end
@@ -1485,7 +1539,6 @@ module ocaml4142_vm_rtl (
 							8'd92:
 								;
 							default: begin
-								$display("almost complete, unhandled ops go to trap instead of silently wrong behavior.");
 								trap_valid <= 1'b1;
 								trap_prim <= 8'hff;
 								trap_arg0 <= Val_int(opcode);
@@ -1661,7 +1714,6 @@ module ocaml4142_vm_rtl (
 					hp_limit <= to_lo + gc_semi;
 					gc_count <= gc_count + 1;
 					if ((gc_free + gc_need) > (to_lo + gc_semi)) begin
-						$display("GC: out of memory (%0d words live, %0d needed, semi-space %0d)", gc_free - to_lo, gc_need, gc_semi);
 						trap_valid <= 1'b1;
 						trap_prim <= 8'hf1;
 						state <= 7'd48;
@@ -1935,6 +1987,106 @@ module ocaml4142_vm_rtl (
 						accu <= Val_int(hm_rd_a[8 * str_byte+:8]);
 						state <= 7'd4;
 					end
+				7'd88:
+					if (!rd_phase) begin
+						heap_read_a(Heap_index_of_ptr(accu) + 1);
+						heap_read_b(Heap_index_of_ptr(accu) + 2);
+						hold_for_read;
+					end
+					else begin
+						fp_lo <= hm_rd_a;
+						fp_hi <= hm_rd_b;
+						state <= 7'd90;
+					end
+				7'd89:
+					if (!rd_phase) begin
+						heap_read_a(Heap_index_of_ptr(st_rd_a) + 1);
+						heap_read_b(Heap_index_of_ptr(st_rd_a) + 2);
+						hold_for_read;
+					end
+					else begin
+						fp_lo <= hm_rd_a;
+						fp_hi <= hm_rd_b;
+						state <= 7'd91;
+					end
+				7'd90:
+					if (!trap_valid) begin
+						trap_valid <= 1'b1;
+						trap_prim <= TRAP_FP_A;
+						trap_arg0 <= (fp_from_int ? Int_val(accu) : fp_lo);
+						trap_arg1 <= (fp_from_int ? {VALUEW {accu[VALUEW - 1]}} : fp_hi);
+					end
+					else if (trap_ready) begin
+						trap_valid <= 1'b0;
+						state <= (fp_unary ? 7'd92 : 7'd89);
+					end
+				7'd91:
+					if (!trap_valid) begin
+						trap_valid <= 1'b1;
+						trap_prim <= TRAP_FP_B;
+						trap_arg0 <= fp_lo;
+						trap_arg1 <= fp_hi;
+					end
+					else if (trap_ready) begin
+						trap_valid <= 1'b0;
+						state <= 7'd92;
+					end
+				7'd92:
+					if (!trap_valid) begin
+						trap_valid <= 1'b1;
+						trap_prim <= TRAP_FP_EXEC;
+						trap_arg0 <= {{VALUEW - 4 {1'b0}}, fp_op};
+						trap_arg1 <= 1'sb0;
+					end
+					else if (trap_ready) begin
+						trap_valid <= 1'b0;
+						if (fp_boxes) begin
+							fp_lo <= trap_result;
+							state <= 7'd93;
+						end
+						else if (fp_op == FP_TO_INT) begin
+							accu <= Val_int(trap_result);
+							state <= 7'd4;
+						end
+						else begin
+							accu <= (trap_result[0] ^ fp_negate ? VAL_TRUE : VAL_FALSE);
+							state <= 7'd4;
+						end
+					end
+				7'd93:
+					if (!trap_valid) begin
+						trap_valid <= 1'b1;
+						trap_prim <= TRAP_FP_HI;
+						trap_arg0 <= 1'sb0;
+						trap_arg1 <= 1'sb0;
+					end
+					else if (trap_ready) begin
+						trap_valid <= 1'b0;
+						fp_hi <= trap_result;
+						alloc_i <= 0;
+						state <= 7'd94;
+					end
+				7'd94:
+					case (alloc_i)
+						16'd0: begin
+							heap_write(hp, Make_header(2, DOUBLE_TAG));
+							alloc_i <= 1;
+						end
+						16'd1: begin
+							heap_write(hp + 1, fp_lo);
+							alloc_i <= 2;
+						end
+						16'd2: begin
+							heap_write(hp + 2, fp_hi);
+							alloc_i <= 3;
+						end
+						default: begin
+							accu <= Ptr_of_heap_index(hp);
+							hp <= hp + 3;
+							alloc_i <= 0;
+							state <= 7'd4;
+						end
+					endcase
 				7'd81:
 					if (trap_ready) begin
 						trap_valid <= 1'b0;
@@ -2321,12 +2473,9 @@ module ocaml4142_vm_rtl (
 					accu <= VAL_UNIT;
 					state <= 7'd4;
 				end
-				7'd4: begin
-					$display("  instruction done, acc=0x%08x, pc=%d", accu, pc);
-					state <= 7'd0;
-				end
+				7'd4: state <= 7'd0;
 				default:
-					$display("Invalid state %d", state);
+					;
 			endcase
 		end
 		if (st_we_a)

@@ -45,14 +45,20 @@ module vc707_ethmin_vm (
 	// CLK_HZ must match it: the UART divider and the millisecond timer are
 	// derived from it.  Both are overridable so a flow that cannot close
 	// 100 MHz can build the same design slower (the open flow, at present).
+// 50 MHz for this example, not the 100 MHz this file defaults to upstream.
+// With the floating-point unit in it the open flow closes 50 (62.2 MHz
+// achieved, no hold violations left) and fails 62.5 (59.5) and 75 (61.0);
+// Vivado closes the same design at 100.  Without the FPU the open flow
+// reaches about 72-77 MHz, varying with placement, which is why 75 was too
+// close to the edge to ship.  See README.md.
 `ifndef SYS_DIV
-`define SYS_DIV 10.000
+`define SYS_DIV 20.000
 `endif
 `ifndef BUILD_ID
 `define BUILD_ID 32'd0
 `endif
 `ifndef CLK_HZ
-`define CLK_HZ 100_000_000
+`define CLK_HZ 50_000_000
 `endif
 	clkgen_vc707 #(.MAC_DIV(MAC_DIV), .SYS_DIV(`SYS_DIV)) clkgen (
 		.IO_CLK_P(IO_CLK_P), .IO_CLK_N(IO_CLK_N), .IO_RST_N(~IO_RST),
