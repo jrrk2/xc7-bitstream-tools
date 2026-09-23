@@ -76,6 +76,6 @@
 [submodule "System-Verilog-suite"]
 	path = System-Verilog-suite
 	url = https://github.com/jrrk2/System-Verilog-suite.git
-[submodule "pythondata-cpu-naxriscv"]
-	path = pythondata-cpu-naxriscv
+[submodule "litex-deps/pythondata-cpu-naxriscv"]
+	path = litex-deps/pythondata-cpu-naxriscv
 	url = https://github.com/litex-hub/pythondata-cpu-naxriscv.git
