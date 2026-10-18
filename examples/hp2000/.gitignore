@@ -1,0 +1,6 @@
+# generated / fetched / large -- never committed
+build/
+src/
+tsb_src/
+lib/
+__pycache__/
