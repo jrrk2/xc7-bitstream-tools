@@ -715,7 +715,7 @@ HP2000_RTL   := $(CURDIR)/examples/hp2000/rtl/hp2000_top.v $(CURDIR)/examples/hp
                 $(CURDIR)/examples/hp2000/rtl/dev/hp_pr.v $(CURDIR)/examples/hp2000/rtl/dev/hp_link.v \
                 $(CURDIR)/examples/hp2000/rtl/dev/hp_tbg.v $(CURDIR)/examples/hp2000/rtl/dev/hp_mux.v
 
-vc707-hp2000: fasm2netlist nextpnr
+vc707-hp2000: tools fasm2netlist nextpnr
 	@scripts/pinned_yosys.sh >/dev/null
 	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
