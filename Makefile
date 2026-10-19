@@ -19,7 +19,7 @@ PRJXRAY_DB ?= .deps/prjxray-db
 # machines on the same commit of this repository, with different databases
 # here, place and time identically and write different bitstreams -- a
 # difference that shows up on hardware and nowhere in the build log.
-PRJXRAY_DB_REV ?= 5099b9edaf52c882295fa7a6d5bcd9abca5bf154
+PRJXRAY_DB_REV ?= 43af59b8402d3b0c614ddad335e6e30c8e2cd8f2
 # cmake's chipdb generator runs with its working directory set to the build
 # tree, so a database path given relative to here does not resolve there --
 # it fails looking for <device>/tilegrid.json.  Make it absolute up front.
