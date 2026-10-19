@@ -734,6 +734,7 @@ vc707-hp2000: fasm2netlist nextpnr
 		-o xdc=$(HP2000_BUILD)/gateware/$(LITEX_TOP).xdc \
 		--json $(HP2000_BUILD)/gateware/$(LITEX_TOP).json \
 		-o fasm=$(HP2000_BUILD)/gateware/$(LITEX_TOP).fasm \
+		-o placement=$(HP2000_BUILD)/gateware/$(LITEX_TOP)_placement.json \
 		--router router2 $(NEXTPNR_FLAGS) --timing-allow-fail
 	$(MAKE) check-fasm FASM=$(HP2000_BUILD)/gateware/$(LITEX_TOP).fasm PRJXRAY_DB=$(PRJXRAY_DB)
 	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 --part $(LITEX_PART) \
