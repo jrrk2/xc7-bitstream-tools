@@ -1,4 +1,4 @@
-.PHONY: vc707-litex-ddr-ethmin-smpsd-1gb vc707-litex-rocket vc707-litex-rocket-flash vc707-litex-linux-payload-check linux-payload-check vc707-serv-sdc vc707-serv-sdc-flash vc707-serv-sd-vivado vc707-serv-sd vc707-serv-sd-flash vc707-litex-ddr-ethmin-smpsd help setup litex-deps prjxray-db tftp-serve tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: vc707-litex-ddr-ethmin-smpsd-1gb vc707-hp2000 vc707-litex-rocket vc707-litex-rocket-flash vc707-litex-linux-payload-check linux-payload-check vc707-serv-sdc vc707-serv-sdc-flash vc707-serv-sd-vivado vc707-serv-sd vc707-serv-sd-flash vc707-litex-ddr-ethmin-smpsd help setup litex-deps prjxray-db tftp-serve tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 # Values that are properties of a machine rather than of the project --
@@ -444,6 +444,7 @@ help:
 	  '  make vc707-litex-verify                 Prove that SoC equals its synthesis, as CI does' \
 	  '  make vc707-ethmin                       Build the gigabit-Ethernet SoC (picorv32 + LiteEth SGMII)' \
 	  '  make vc707-ethmin-flash                 ...and flash it to the board' \
+	  '  make vc707-hp2000                       Build the HP 2000F TSB SoC (two HP 2100 cores), open flow' \
 	  '  make vc707-litex-ddr-vivado             Build the DDR3 SoC with Vivado (the golden reference)' \
 	  '  make vc707-litex-ddr-gen                Regenerate its gateware from the LiteX sources' \
 	  '  make sonata FASM=...                    Convert an Artix-7 FASM to Sonata UF2' \
@@ -688,6 +689,58 @@ vc707-litex-ddr-ethmin-smpsd-1gb: fasm2netlist nextpnr
 		--db $(PRJXRAY_DB) --fasm $(SMP1GB_DIR)/gateware/$(LITEX_TOP).fasm \
 		--output $(SMP1GB_OUT)
 	@echo "built $(SMP1GB_OUT) -- payload dir is $(SMP1GB_TFTP_DIR)"
+
+# The HP 2000F Time-Shared BASIC machine on the same SoC as smpsd-1gb: the two
+# HP 2100 cores, their devices and BRAM memories as a LiteX module in a separate
+# 20 MHz clock domain (see examples/hp2000).  Its ROM embeds the IOP program and
+# the system tape, assembled from HP's copyright sources, which are fetched (not
+# committed) by examples/hp2000's bios-assets target -- the same way prjxray-db
+# is pinned and fetched.
+#
+# nextpnr has not closed timing on this two-clock design yet, so the run is
+# --timing-allow-fail: it answers "does it still build and come up", not "does it
+# meet timing".  See examples/hp2000/README.md.
+HP2000_DIR   ?= examples/hp2000
+HP2000_BUILD ?= $(HP2000_DIR)/build/litex-hp2000
+HP2000_OUT   ?= hp2000_vc707.bit
+# The 17 RTL files hp2000.py adds to the platform (its RTL_SOURCES), absolute
+# because yosys runs cd'd into the gateware directory.
+HP2000_RTL   := $(CURDIR)/examples/hp2000/rtl/hp2000_top.v $(CURDIR)/examples/hp2000/rtl/hp2000_sys.v \
+                $(CURDIR)/examples/hp2000/rtl/hp_core.v $(CURDIR)/examples/hp2000/rtl/hp2100_cpu.v \
+                $(CURDIR)/examples/hp2000/rtl/hp_iobus.v $(CURDIR)/examples/hp2000/rtl/hp_dma.v \
+                $(CURDIR)/examples/hp2000/rtl/hp_fp.v $(CURDIR)/examples/hp2000/rtl/hp_divu.v \
+                $(CURDIR)/examples/hp2000/rtl/hp_dram_arb.v \
+                $(CURDIR)/examples/hp2000/rtl/dev/hp_tty.v $(CURDIR)/examples/hp2000/rtl/dev/hp_iss.v \
+                $(CURDIR)/examples/hp2000/rtl/dev/hp_disc_store.v $(CURDIR)/examples/hp2000/rtl/dev/hp_mt.v \
+                $(CURDIR)/examples/hp2000/rtl/dev/hp_pr.v $(CURDIR)/examples/hp2000/rtl/dev/hp_link.v \
+                $(CURDIR)/examples/hp2000/rtl/dev/hp_tbg.v $(CURDIR)/examples/hp2000/rtl/dev/hp_mux.v
+
+vc707-hp2000: tools fasm2netlist nextpnr
+	@scripts/pinned_yosys.sh >/dev/null
+	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
+	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
+	$(MAKE) -C $(HP2000_DIR) bios-assets
+	rm -rf $(HP2000_BUILD)
+	cd $(HP2000_DIR)/litex && PATH="$(dir $(PYTHON)):$$PATH" $(PYTHON) hp2000_vc707.py \
+		--cpu-type vexriscv_smp --cpu-variant linux \
+		--cpu-count 1 --hardware-breakpoints 0 --with-wishbone-memory --with-ddr --with-ddr64 \
+		--with-ethmin-phy --with-sdcard --l2-size 131072 --with-led-chaser --with-dhcp \
+		--flow openXC7 --no-compile-gateware --with-hp2000 --build \
+		--output-dir ../build/litex-hp2000
+	cd $(HP2000_BUILD)/gateware && $(PINNED_YOSYS) -q -p \
+		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+		$(SMPSD_RAM) $$(ls VexRiscvLitexSmpCluster_*.v) $(ETHMIN_PHY_V) $(LITEX_TOP).v $(HP2000_RTL)
+	$(NEXTPNR_BIN) --device $(LITEX_PART) \
+		-o xdc=$(HP2000_BUILD)/gateware/$(LITEX_TOP).xdc \
+		--json $(HP2000_BUILD)/gateware/$(LITEX_TOP).json \
+		-o fasm=$(HP2000_BUILD)/gateware/$(LITEX_TOP).fasm \
+		-o placement=$(HP2000_BUILD)/gateware/$(LITEX_TOP)_placement.json \
+		--router router2 $(NEXTPNR_FLAGS) --timing-allow-fail
+	$(MAKE) check-fasm FASM=$(HP2000_BUILD)/gateware/$(LITEX_TOP).fasm PRJXRAY_DB=$(PRJXRAY_DB)
+	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 --part $(LITEX_PART) \
+		--db $(PRJXRAY_DB) --fasm $(HP2000_BUILD)/gateware/$(LITEX_TOP).fasm \
+		--output $(HP2000_OUT)
+	@echo "built $(HP2000_OUT)"
 
 # ---------------------------------------------------------------------------
 # Rocket RV64IMAC through the open flow.

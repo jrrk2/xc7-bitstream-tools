@@ -1,0 +1,188 @@
+name: Build HP 2000F
+
+# Like build-linux.yml, not on every push: this is a VexRiscv-SMP SoC beside a
+# DDR3 PHY, a gigabit transceiver, and the two HP 2100 cores -- place-and-route
+# is measured in tens of minutes.  It runs when something it depends on moves,
+# and on request.
+#
+# Unlike the committed-gateware examples in verify-examples.yml, this one's
+# bitstream embeds HP's IOP program and system tape, assembled here from the
+# Bitsavers sources (never committed) by examples/hp2000's bios-assets target.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.gitmodules'
+      - 'nextpnr'
+      - 'fasm2netlist'
+      - 'examples/vc707-litex/vc707_litex.py'
+      - 'examples/vc707-ethmin/rtl/liteeth_sgmii_phy.v'
+      - 'examples/hp2000/**'
+      - 'scripts/**'
+      - '.github/workflows/build-hp2000.yml'
+      - '.github/ci/build_hp2000.sh'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.gitmodules'
+      - 'nextpnr'
+      - 'fasm2netlist'
+      - 'examples/vc707-litex/vc707_litex.py'
+      - 'examples/vc707-ethmin/rtl/liteeth_sgmii_phy.v'
+      - 'examples/hp2000/**'
+      - 'scripts/**'
+      - '.github/workflows/build-hp2000.yml'
+      - '.github/ci/build_hp2000.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# The hp2000 example needs the virtex7 fixes on the virtex7/frame-addresses
+# branch (BRAM_L frame addresses, CFG_CENTER, IOB_Y0 input enable); build
+# against that branch until they merge to master.  The unpinned flag still
+# applies: the branch tip (43af59b) is ahead of the pin this branch's Makefile
+# records (5099b9e -- the pin bump is a separate change), so the revision
+# check reports the difference and carries on.
+env:
+  PRJXRAY_DB_UNPINNED: 1
+
+jobs:
+  build:
+    name: HP 2000F through the open flow
+    runs-on: ubuntu-latest
+    # P&R on this design takes ~10 min on a fast workstation; a runner is
+    # slower and the placer is the long pole.  The LVS proof after it is
+    # bounded separately by the build script.
+    timeout-minutes: 180
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          # recursive: yosys carries abc, and the LiteX dependencies (litex,
+          # liteeth, litedram, litesdcard, pythondata-cpu-vexriscv and
+          # pythondata-cpu-vexriscv-smp) are submodules the generator imports.
+          submodules: recursive
+
+      - name: Fetch the Project X-Ray database
+        run: git clone --depth 1 --branch virtex7/frame-addresses https://github.com/openXC7/prjxray-db .deps/prjxray-db
+
+      - name: Work out the cache key
+        id: keys
+        run: |
+          echo "nextpnr=$(git -C nextpnr rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "db=$(git -C .deps/prjxray-db rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "yosys=$(git -C yosys rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Shares the key the other workflows use, so one chipdb serves all of them.
+      - name: Restore xc7vx485t chipdb
+        id: cache-vx485t
+        uses: actions/cache/restore@v4
+        with:
+          path: build/himbaechel/uarch/xilinx/chipdb-xc7vx485t.bba
+          key: chipdb-xc7vx485t-${{ steps.keys.outputs.nextpnr }}-${{ steps.keys.outputs.db }}
+
+      # cmake rebuilds a .bba older than its generator, and a restored one
+      # always is -- checkout stamps sources now, the cache restores the old
+      # mtime.  Without this the cache saves nothing.
+      - name: Accept the restored chipdb as current
+        run: |
+          shopt -s nullglob
+          files=(build/himbaechel/uarch/xilinx/chipdb-*.bba)
+          if [ ${#files[@]} -gt 0 ]; then touch "${files[@]}"; echo "marked ${#files[@]} restored chipdb(s) current"
+          else echo "no chipdb restored; it will be generated"; fi
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake git libeigen3-dev libboost-all-dev \
+            python3 python3-venv libz3-dev bison flex libfl-dev \
+            libreadline-dev gawk tcl-dev libffi-dev pkg-config zlib1g-dev \
+            device-tree-compiler gcc-riscv64-unknown-elf meson ninja-build
+
+      - name: Restore the pinned yosys
+        id: cache-yosys
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            yosys/yosys
+            yosys/yosys-abc
+            yosys/share
+          key: yosys-bin2-${{ steps.keys.outputs.yosys }}-${{ runner.os }}
+
+      # A cache hit is not the same as a usable yosys: the key names only the
+      # commit, so an entry saved with a shorter path list restores a yosys
+      # with no yosys-abc beside it, and -abc9 then fails with return code 127
+      # far from here.  Verify rather than assume, and rebuild if it is short.
+      - name: Check the restored yosys is complete
+        id: yosys-ok
+        run: |
+          if [ -x yosys/yosys ] && [ -x yosys/yosys-abc ]; then
+            echo "complete=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "restored yosys is incomplete (yosys-abc missing); rebuilding"
+            echo "complete=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build the pinned yosys
+        if: steps.cache-yosys.outputs.cache-hit != 'true' || steps.yosys-ok.outputs.complete != 'true'
+        run: |
+          make yosys
+          strip yosys/yosys
+          yosys/yosys -V
+
+      - name: Save the pinned yosys
+        if: always() && steps.cache-yosys.outputs.cache-hit != 'true' && hashFiles('yosys/yosys') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            yosys/yosys
+            yosys/yosys-abc
+            yosys/share
+          key: yosys-bin2-${{ steps.keys.outputs.yosys }}-${{ runner.os }}
+
+      - name: Check no package-manager yosys crept back in
+        run: bash scripts/check_no_apt_yosys.sh
+
+      - name: Set up the Python environment
+        run: |
+          make setup
+          # The generator needs LiteX and the cores it instantiates; these are
+          # submodules, installed editable so the checked-out commit is what
+          # runs.  litesdcard and pythondata-cpu-vexriscv-smp are the two the
+          # Linux build does not need (--with-sdcard, --cpu-type vexriscv_smp).
+          .venv/bin/python -m pip install -q \
+            -e litex-deps/migen -e litex-deps/litex -e litex-deps/litex-boards \
+            -e litex-deps/liteeth -e litex-deps/litedram -e litex-deps/litesdcard \
+            -e litex-deps/pythondata-cpu-vexriscv -e litex-deps/pythondata-cpu-vexriscv-smp \
+            -e litex-deps/pythondata-software-picolibc \
+            -e litex-deps/pythondata-software-compiler_rt
+
+      - name: Build nextpnr
+        run: make nextpnr PRJXRAY_DB=$GITHUB_WORKSPACE/.deps/prjxray-db
+
+      - name: Build the HP 2000F SoC and prove its extraction
+        run: bash .github/ci/build_hp2000.sh
+
+      - name: Save xc7vx485t chipdb
+        if: always() && steps.cache-vx485t.outputs.cache-hit != 'true' && hashFiles('build/himbaechel/uarch/xilinx/chipdb-xc7vx485t.bba') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: build/himbaechel/uarch/xilinx/chipdb-xc7vx485t.bba
+          key: chipdb-xc7vx485t-${{ steps.keys.outputs.nextpnr }}-${{ steps.keys.outputs.db }}
+
+      - name: Upload the bitstream
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hp2000-vc707
+          path: hp2000_vc707.bit
+          retention-days: 7
+
+      - name: Report
+        if: always()
+        run: |
+          echo "Status: ${{ job.status }}"
+          [ -f hp2000_vc707.bit ] && echo "bitstream: $(stat -c %s hp2000_vc707.bit) bytes"
+          true
