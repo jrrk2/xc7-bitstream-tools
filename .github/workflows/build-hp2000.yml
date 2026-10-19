@@ -38,11 +38,12 @@ on:
 permissions:
   contents: read
 
-# CI deliberately tracks the tip of prjxray-db rather than the pin in the
-# Makefile: noticing the day upstream changes which bits a FASM line sets is
-# the point of running this here.  So the revision check reports the
-# difference and carries on, instead of failing the build.  The pin is what
-# makes a *release* reproducible; this is what makes drift visible.
+# The hp2000 example needs the virtex7 fixes on the virtex7/frame-addresses
+# branch (BRAM_L frame addresses, CFG_CENTER, IOB_Y0 input enable); build
+# against that branch until they merge to master.  The unpinned flag still
+# applies: the branch tip (43af59b) is ahead of the pin this branch's Makefile
+# records (5099b9e -- the pin bump is a separate change), so the revision
+# check reports the difference and carries on.
 env:
   PRJXRAY_DB_UNPINNED: 1
 
@@ -64,7 +65,7 @@ jobs:
           submodules: recursive
 
       - name: Fetch the Project X-Ray database
-        run: git clone --depth 1 https://github.com/openXC7/prjxray-db .deps/prjxray-db
+        run: git clone --depth 1 --branch virtex7/frame-addresses https://github.com/openXC7/prjxray-db .deps/prjxray-db
 
       - name: Work out the cache key
         id: keys
