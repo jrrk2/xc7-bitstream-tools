@@ -5,8 +5,9 @@
 # The Ethernet, UART and clocking RTL is shared with examples/vc707-ethmin
 # rather than copied: the two SoCs differ only in the processor.
 
-# The processor, converted from SystemVerilog by sv2v (see README.md)
-vm_sv2v.v
+# The processor, in the SystemVerilog it is written in (state_rtl_complete.h
+# is `included from it; see README.md)
+ocaml4142_vm_rtl.sv
 
 # Floating point: Berkeley HardFloat's cores, the IEEE boundary, and the
 # wrapper the processor's trap port talks to

@@ -79,6 +79,7 @@ jobs:
           echo "nextpnr=$(git -C nextpnr rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "db=$(git -C .deps/prjxray-db rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "yosys=$(git -C yosys rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "verilator=$(git -C verilator rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       # yosys is pinned as a submodule and built here, not installed from apt.
       # Which yosys asked the question changes the answer: the LiteX SoC proves
@@ -105,6 +106,31 @@ jobs:
         with:
           path: yosys-install
           key: yosys-${{ steps.keys.outputs.yosys }}-${{ runner.os }}
+
+      # The default synthesiser: Verilator's synthesis backend, pinned as the
+      # `verilator` submodule and built from it, cached on that submodule's
+      # sha like yosys.  Only verilator_bin is built output; the wrapper script
+      # and include files beside it are the checkout itself.
+      - name: Restore the pinned verilator
+        id: cache-verilator
+        uses: actions/cache/restore@v4
+        with:
+          path: verilator/bin/verilator_bin
+          key: verilator-bin-${{ steps.keys.outputs.verilator }}-${{ runner.os }}
+
+      - name: Build the pinned verilator
+        if: steps.cache-verilator.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get install -y autoconf flex bison libfl-dev help2man perl python3
+          make verilator
+          strip verilator/bin/verilator_bin
+
+      - name: Save the pinned verilator
+        if: always() && steps.cache-verilator.outputs.cache-hit != 'true' && hashFiles('verilator/bin/verilator_bin') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: verilator/bin/verilator_bin
+          key: verilator-bin-${{ steps.keys.outputs.verilator }}-${{ runner.os }}
 
       # Generating a chipdb needs far more memory than a runner has to spare,
       # so the intermediate .bba is cached.  One cache per device: a rebuild
@@ -195,6 +221,7 @@ jobs:
             fasm2netlist/build/tileverilog
             fasm2netlist/build/lvs_equiv
             yosys-install/
+            verilator/bin/verilator_bin
           retention-days: 1
 
   verify:
@@ -221,7 +248,7 @@ jobs:
       # SMP cluster's RAM primitive (Ram_1w_1rs_Generic.v) from the package,
       # not from the generated gateware.
       - name: Fetch only the submodules this job reads
-        run: git submodule update --init --depth 1 nextpnr litex-deps/pythondata-cpu-serv litex-deps/pythondata-cpu-vexriscv-smp
+        run: git submodule update --init --depth 1 nextpnr verilator litex-deps/pythondata-cpu-serv litex-deps/pythondata-cpu-vexriscv-smp
 
       # nextpnr is built in another job and only run here, so this job needs
       # the libraries it was linked against even though it compiles nothing:
@@ -246,6 +273,7 @@ jobs:
         run: |
           chmod +x build/nextpnr-himbaechel fasm2netlist/build/tileverilog fasm2netlist/build/lvs_equiv
           chmod -R +x yosys-install/bin
+          chmod +x verilator/bin/verilator_bin
 
       # Fail here, with a name that says what is wrong, rather than letting a
       # missing chipdb or an unloadable library surface as "place and route
@@ -260,6 +288,8 @@ jobs:
           test -s build/share/himbaechel/xilinx/chipdb-xc7vx485t.bin
           build/nextpnr-himbaechel --version
           yosys-install/bin/yosys -V
+          verilator/bin/verilator --version
+          scripts/pinned_verilator.sh
           for t in fasm2netlist/build/tileverilog fasm2netlist/build/lvs_equiv; do
               # 126/127 mean "could not execute" -- anything else means it ran
               # and printed its usage, which is all this needs to establish.

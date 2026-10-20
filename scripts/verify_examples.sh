@@ -138,6 +138,17 @@ fi
 # anything else; YOSYS_UNPINNED=1 is the way to mean it on purpose.
 YOSYS=$("$(dirname "$0")/pinned_yosys.sh") || exit 2
 export YOSYS
+# The synthesiser is separate from that: SYNTH picks it (scripts/synth.sh,
+# Verilator by default), and yosys stays the tool that writes the gold netlist
+# out as Verilog for the proof whichever one synthesised it.
+: ${SYNTH:=verilator}
+export SYNTH
+SYNTH_SH="$(cd "$(dirname "$0")" && pwd)/synth.sh"
+SYNTH_TOOL=$("$SYNTH_SH" --check) || exit 2
+case "$SYNTH" in
+    verilator) synth_version="verilator synthesis $(git -C "$(dirname "$(dirname "$SYNTH_TOOL")")" rev-parse --short HEAD 2>/dev/null)" ;;
+    *)         synth_version="yosys synth_xilinx" ;;
+esac
 
 WANTED=("$@")
 wanted() {
@@ -177,6 +188,7 @@ fail=0 pass=0
 # toolchain cannot be compared with a run from last week, and the version was
 # unrecoverable exactly once, which was once too often.
 yosys_version=$("$YOSYS" -V 2>/dev/null | head -1)
+echo "synth:   $synth_version"
 echo "yosys:   ${yosys_version:-unknown ($YOSYS)}"
 echo "nextpnr: $("$NEXTPNR_BIN" --version 2>&1 | head -1)"
 echo
@@ -195,10 +207,10 @@ for row in "${DESIGNS[@]}"; do
         @*) srcs="$(sed -e '/^[[:space:]]*#/d' -e 's/[[:space:]][[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$dir/${srcs#@}" | tr '\n' ' ')" ;;
     esac
 
-    { echo "yosys: ${yosys_version:-unknown}"
+    { echo "synth: $synth_version"
+      echo "yosys: ${yosys_version:-unknown}"
       echo "nextpnr: $("$NEXTPNR_BIN" --version 2>&1 | head -1)"; } > "$d/toolchain"
-    if ! ( cd "$dir" && "$YOSYS" -q -p \
-            "synth_xilinx -flatten -abc9 $synth -arch xc7 -top $top; write_json $d/gold.json" \
+    if ! ( cd "$dir" && "$SYNTH_SH" ${synth:+-${synth}} --top "$top" --out "$d/gold.json" \
             $srcs ) >"$log" 2>&1; then
         printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "synthesis failed, see $log"
         annotate error "$name" "synthesis failed"; tail_log "$log"; summary "| $name | FAIL | - | - |"; fail=$((fail+1)); continue
@@ -266,10 +278,10 @@ for row in ${BLOCKED[@]+"${BLOCKED[@]}"}; do
         @*) srcs="$(sed -e '/^[[:space:]]*#/d' -e 's/[[:space:]][[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$dir/${srcs#@}" | tr '\n' ' ')" ;;
     esac
 
-    { echo "yosys: ${yosys_version:-unknown}"
+    { echo "synth: $synth_version"
+      echo "yosys: ${yosys_version:-unknown}"
       echo "nextpnr: $("$NEXTPNR_BIN" --version 2>&1 | head -1)"; } > "$d/toolchain"
-    if ! ( cd "$dir" && "$YOSYS" -q -p \
-            "synth_xilinx -flatten -abc9 -arch xc7 -top $top; write_json $d/gold.json" \
+    if ! ( cd "$dir" && "$SYNTH_SH" --top "$top" --out "$d/gold.json" \
             $srcs ) >>"$log" 2>&1; then
         printf '%-18s %10s %8s %8s   %s\n' "$name" FAIL - - "synthesis failed, see $log"
         annotate error "$name" "synthesis failed"; tail_log "$log"

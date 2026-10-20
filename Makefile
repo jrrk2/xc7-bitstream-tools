@@ -1,4 +1,4 @@
-.PHONY: vc707-litex-ddr-ethmin-smpsd-1gb vc707-hp2000 vc707-litex-rocket vc707-litex-rocket-flash vc707-litex-linux-payload-check linux-payload-check vc707-serv-sdc vc707-serv-sdc-flash vc707-serv-sd-vivado vc707-serv-sd vc707-serv-sd-flash vc707-litex-ddr-ethmin-smpsd help setup litex-deps prjxray-db tftp-serve tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
+.PHONY: verilator vc707-litex-ddr-ethmin-smpsd-1gb vc707-hp2000 vc707-litex-rocket vc707-litex-rocket-flash vc707-litex-linux-payload-check linux-payload-check vc707-serv-sdc vc707-serv-sdc-flash vc707-serv-sd-vivado vc707-serv-sd vc707-serv-sd-flash vc707-litex-ddr-ethmin-smpsd help setup litex-deps prjxray-db tftp-serve tools yosys nextpnr check-fasm vc707-ethmin vc707-ethmin-flash vc707-litex-ddr-gen vc707-litex-ddr-vivado vc707-litex-ddr-flash vc707-johnson vc707-telegraph vc707-telegraph-vivado vc707-telegraph-flash vc707-telegraph-flash-vivado vc707-litex-eth-vivado vc707-litex-eth-flash-vivado vc707-litex-ddr-eth-vivado vc707-litex-ddr-eth-flash-vivado vc707-litex-ddr-ethmin vc707-litex-ddr-ethmin-flash vc707-litex-ddr-ethmin-vivado vc707-litex-ddr-ethmin-vivado-pnr vc707-litex-ddr-ethmin-flash-vivado vc707-litex-linux vc707-litex-linux-emulator vc707-litex-linux-payload vc707-litex-linux-flash arty-blinky vc707-litex vc707-litex-gen vc707-litex-verify verify-examples sonata vc707 validate-bitstream fasm2netlist lvs z3-prove sat-match verify-extraction clean
 .DEFAULT_GOAL := help
 
 # Values that are properties of a machine rather than of the project --
@@ -66,6 +66,17 @@ YOSYS_BIN ?= $(YOSYS_DIR)/yosys
 # command.  Leaving YOSYS alone lets it reach the guard as the user set it,
 # which is the whole point of having a guard.
 PINNED_YOSYS = $(shell scripts/pinned_yosys.sh 2>/dev/null)
+# Which synthesiser turns RTL into the primitive netlist nextpnr places:
+# verilator (default), the synthesis backend on jrrk2/verilator's `synthesis`
+# branch, pinned as the `verilator` submodule and built by `make verilator`;
+# or yosys, the pinned synth_xilinx above.  Verilator elaborates
+# SystemVerilog itself, so no example needs sv2v.  yosys is still needed by
+# the verification steps, which use it to turn a JSON netlist into Verilog.
+SYNTH ?= verilator
+VERILATOR_DIR ?= verilator
+# Absolute, because most designs are synthesised from inside their own
+# directory (see scripts/synth.sh on $readmemh paths).
+SYNTH_CMD = SYNTH=$(SYNTH) $(CURDIR)/scripts/synth.sh
 VC707_DIR ?= examples/vc707-johnson
 VC707_FASM ?=
 VC707_PART ?= xc7vx485tffg1761-2
@@ -230,9 +241,9 @@ ETHMIN_OUT  ?= ethmin_vc707.bit
 ETHMIN_SRCS := $(shell sed -e '/^[[:space:]]*\#/d' -e 's/[[:space:]][[:space:]]*\#.*$$//' -e '/^[[:space:]]*$$/d' examples/vc707-ethmin/sources.f | tr '\n' ' ')
 
 vc707-ethmin: fasm2netlist nextpnr
-	@scripts/pinned_yosys.sh >/dev/null
+	@$(SYNTH_CMD) --check >/dev/null
 	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
-	cd $(ETHMIN_DIR) && $(PINNED_YOSYS) -q -p 'read_verilog -sv $(ETHMIN_SRCS); synth_xilinx -flatten -abc9 -arch xc7 -top $(ETHMIN_TOP); write_json $(ETHMIN_TOP).json'
+	cd $(ETHMIN_DIR) && $(SYNTH_CMD) --sv --top $(ETHMIN_TOP) --out $(ETHMIN_TOP).json $(ETHMIN_SRCS)
 	$(NEXTPNR_BIN) --device $(ETHMIN_PART) -o xdc=$(ETHMIN_DIR)/$(ETHMIN_TOP).xdc \
 		--json $(ETHMIN_DIR)/$(ETHMIN_TOP).json \
 		-o fasm=$(ETHMIN_DIR)/$(ETHMIN_TOP).fasm \
@@ -252,11 +263,10 @@ vc707-ethmin-flash:
 	$(OFL) --cable digilent --freq 15000000 $(ETHMIN_OUT)
 
 vc707-litex: fasm2netlist nextpnr
-	@scripts/pinned_yosys.sh >/dev/null
+	@$(SYNTH_CMD) --check >/dev/null
 	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	@test -f "$(LITEX_GATEWARE)/$(LITEX_TOP).v" || { echo "no generated gateware; run 'make vc707-litex-gen' first"; exit 2; }
-	cd $(LITEX_GATEWARE) && $(PINNED_YOSYS) -q -p \
-		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+	cd $(LITEX_GATEWARE) && $(SYNTH_CMD) --top $(LITEX_TOP) --out $(LITEX_TOP).json \
 		$$(grep -v '^\#' sources.f)
 	$(NEXTPNR_BIN) --device $(LITEX_PART) -o xdc=$(LITEX_GATEWARE)/$(LITEX_TOP).xdc \
 		--json $(LITEX_GATEWARE)/$(LITEX_TOP).json \
@@ -334,7 +344,7 @@ SERVSD_OUT ?= litex_serv_sd_vc707.bit
 SERV_RTL   ?= $(CURDIR)/litex-deps/pythondata-cpu-serv/pythondata_cpu_serv/verilog/rtl
 
 vc707-serv-sd: fasm2netlist nextpnr
-	@scripts/pinned_yosys.sh >/dev/null
+	@$(SYNTH_CMD) --check >/dev/null
 	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
 	rm -rf $(SERVSD_DIR)
@@ -342,8 +352,7 @@ vc707-serv-sd: fasm2netlist nextpnr
 		--with-led-chaser --cpu-type serv --integrated-main-ram-size 0x4000 \
 		--with-sdcard --flow openXC7 --no-compile-gateware --build \
 		--output-dir $(SERVSD_DIR)
-	cd $(SERVSD_DIR)/gateware && $(PINNED_YOSYS) -q -p \
-		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+	cd $(SERVSD_DIR)/gateware && $(SYNTH_CMD) --top $(LITEX_TOP) --out $(LITEX_TOP).json \
 		$(SERV_RTL)/*.v $(LITEX_TOP).v
 	$(NEXTPNR_BIN) --device $(LITEX_PART) \
 		-o xdc=$(SERVSD_DIR)/gateware/$(LITEX_TOP).xdc \
@@ -382,7 +391,7 @@ SERVSDC_OUT ?= litex_serv_sdc_vc707.bit
 SDC_RTL     ?= $(CURDIR)/rtl-deps/sd-card-controller/rtl/verilog
 
 vc707-serv-sdc: fasm2netlist nextpnr
-	@scripts/pinned_yosys.sh >/dev/null
+	@$(SYNTH_CMD) --check >/dev/null
 	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	@test -f $(SDC_RTL)/sdc_controller.v || { \
 	  echo "rtl-deps/sd-card-controller is empty; run: git submodule update --init rtl-deps/sd-card-controller"; exit 2; }
@@ -391,9 +400,8 @@ vc707-serv-sdc: fasm2netlist nextpnr
 		--with-led-chaser --cpu-type serv --integrated-main-ram-size 0x4000 \
 		--with-sdc --flow openXC7 --no-compile-gateware --build \
 		--output-dir $(SERVSDC_DIR)
-	cd $(SERVSDC_DIR)/gateware && $(PINNED_YOSYS) -q -p \
-		'read_verilog -I$(SDC_RTL) $(SDC_RTL)/*.v; synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
-		$(SERV_RTL)/*.v $(LITEX_TOP).v
+	cd $(SERVSDC_DIR)/gateware && $(SYNTH_CMD) --top $(LITEX_TOP) --out $(LITEX_TOP).json \
+		-I$(SDC_RTL) $(SDC_RTL)/*.v $(SERV_RTL)/*.v $(LITEX_TOP).v
 	$(NEXTPNR_BIN) --device $(LITEX_PART) \
 		-o xdc=$(SERVSDC_DIR)/gateware/$(LITEX_TOP).xdc \
 		--json $(SERVSDC_DIR)/gateware/$(LITEX_TOP).json \
@@ -424,8 +432,9 @@ vc707-serv-sd-flash:
 # blocked, with the reason -- not as a failure, and not silently.
 vc707-litex-verify: fasm2netlist nextpnr
 	@scripts/pinned_yosys.sh >/dev/null
+	@$(SYNTH_CMD) --check >/dev/null
 	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
-	YOSYS=$(PINNED_YOSYS) NEXTPNR_BIN=$(NEXTPNR_BIN) PRJXRAY_DB=$(PRJXRAY_DB) \
+	SYNTH=$(SYNTH) YOSYS=$(PINNED_YOSYS) NEXTPNR_BIN=$(NEXTPNR_BIN) PRJXRAY_DB=$(PRJXRAY_DB) \
 		TILEVERILOG=$(TILEVERILOG) LVS_EQUIV=$(LVS_EQUIV) OUT=$(VERIFY_DIR)/examples \
 		scripts/verify_examples.sh vc707-litex
 
@@ -433,7 +442,8 @@ help:
 	@printf '%s\n' 'Targets:' \
 	  '  make setup                              Create the local Python environment' \
 	  '  make litex-deps                         Install the LiteX packages the generators import' 	  '  make tools                              Build Project X-Ray conversion tools' \
-	  '  make yosys                              Build the pinned yosys (the one the results are quoted for)' \
+	  '  make verilator                          Build the pinned Verilator synthesis backend (the default synthesiser)' \
+	  '  make yosys                              Build the pinned yosys (SYNTH=yosys, and the verification steps)' \
 	  '  make vc707-johnson                      Build VC707 Johnson from source to raw bitstream' \
 	  '  make vc707-telegraph                    Build VC707 telegraph: UART "JRRK" + heartbeat LED' \
 	  '  make vc707-litex-ddr-ethmin             LiteX SoC with DDR3 + gigabit ethernet, open flow' \
@@ -459,7 +469,8 @@ help:
 	  '  make verify-examples DESIGNS="a b"      ... or just the named ones, as the CI matrix does' \
 	  '  make check-fasm FASM=...                Fail if a FASM needs bits prjxray does not have' \
 	  '' \
-	  'Examples verify themselves by default; pass VERIFY=0 to skip that step.'
+	  'Examples verify themselves by default; pass VERIFY=0 to skip that step.' \
+	  'Synthesis is Verilator by default; pass SYNTH=yosys to use the pinned yosys instead.'
 
 setup:
 	python3 -m venv .venv
@@ -482,6 +493,16 @@ yosys:
 	$(MAKE) -C $(YOSYS_DIR) -j$$(nproc)
 	@echo "built $$($(YOSYS_BIN) -V)"
 
+# Built in its checkout, like yosys: the submodule is ignore=dirty for that
+# reason.  ABC comes with it as third_party/abc, hence --recursive.
+verilator:
+	@test -f $(VERILATOR_DIR)/configure.ac && test -f $(VERILATOR_DIR)/third_party/abc/Makefile || { \
+	  echo "the verilator submodule is not checked out; run:"; \
+	  echo "  git submodule update --init --recursive $(VERILATOR_DIR)"; exit 2; }
+	cd $(VERILATOR_DIR) && { test -f configure || autoconf; } && { test -f Makefile || ./configure; }
+	$(MAKE) -C $(VERILATOR_DIR)/src ../bin/verilator_bin -j$$(nproc)
+	@echo "built $(VERILATOR_DIR) at $$(git -C $(VERILATOR_DIR) rev-parse --short HEAD)"
+
 nextpnr:
 	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	cmake -S $(NEXTPNR_DIR) -B $(NEXTPNR_BUILD) -DARCH=himbaechel -DHIMBAECHEL_UARCH=xilinx \
@@ -490,8 +511,8 @@ nextpnr:
 	cmake --build $(NEXTPNR_BUILD) --target nextpnr-himbaechel --parallel 4
 
 vc707-johnson: tools nextpnr
-	@scripts/pinned_yosys.sh >/dev/null
-	cd $(VC707_DIR) && $(PINNED_YOSYS) -p 'synth_xilinx -flatten -abc9 -nobram -arch xc7 -top top; write_json johnson.json' top.v counter25_core.v
+	@$(SYNTH_CMD) --check >/dev/null
+	cd $(VC707_DIR) && $(SYNTH_CMD) --nobram --top top --out johnson.json top.v counter25_core.v
 	$(NEXTPNR_BIN) --device $(VC707_PART) -o xdc=$(VC707_DIR)/top.xdc --json $(VC707_DIR)/johnson.json \
 		-o fasm=$(VC707_DIR)/johnson.fasm -o placement=$(VC707_DIR)/johnson_placement.json --router router2 $(NEXTPNR_FLAGS)
 	$(MAKE) vc707 VC707_FASM=$(VC707_DIR)/johnson.fasm PRJXRAY_DB=$(PRJXRAY_DB) VC707_OUT=$(VC707_OUT)
@@ -509,8 +530,8 @@ endif
 # so cannot distinguish them.  led[0] blinks at ~0.75 Hz if sysclk reaches the
 # fabric; "JRRK" arrives at 115200 8N1 if the AU36 TX path works end to end.
 vc707-telegraph: tools nextpnr
-	@scripts/pinned_yosys.sh >/dev/null
-	cd $(TELEGRAPH_DIR) && $(PINNED_YOSYS) -p 'synth_xilinx -flatten -abc9 -nobram -arch xc7 -top top; write_json telegraph.json' top.v telegraph_core.v
+	@$(SYNTH_CMD) --check >/dev/null
+	cd $(TELEGRAPH_DIR) && $(SYNTH_CMD) --nobram --top top --out telegraph.json top.v telegraph_core.v
 	$(NEXTPNR_BIN) --device $(VC707_PART) -o xdc=$(TELEGRAPH_DIR)/top.xdc --json $(TELEGRAPH_DIR)/telegraph.json \
 		-o fasm=$(TELEGRAPH_DIR)/telegraph.fasm -o placement=$(TELEGRAPH_DIR)/telegraph_placement.json --router router2 $(NEXTPNR_FLAGS)
 	$(MAKE) vc707 VC707_FASM=$(TELEGRAPH_DIR)/telegraph.fasm PRJXRAY_DB=$(PRJXRAY_DB) VC707_OUT=$(TELEGRAPH_OUT)
@@ -590,7 +611,7 @@ vc707-litex-eth-flash-vivado:
 #   * NEXTPNR_FLAGS' placer timing weight (see the top of this file).  At the
 #     default the GMII datapath lands 60-120 MHz across identical runs.
 vc707-litex-ddr-ethmin: fasm2netlist nextpnr
-	@scripts/pinned_yosys.sh >/dev/null
+	@$(SYNTH_CMD) --check >/dev/null
 	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
 	@$(PYTHON) -c 'import liteeth, litedram, pythondata_cpu_vexriscv' 2>/dev/null || { \
@@ -601,8 +622,7 @@ vc707-litex-ddr-ethmin: fasm2netlist nextpnr
 		--flow openXC7 --no-compile-gateware --build \
 		$(if $(LITEX_REMOTE_IP),--remote-ip $(LITEX_REMOTE_IP)) $(if $(LITEX_LOCAL_IP),--local-ip $(LITEX_LOCAL_IP)) \
 		--output-dir $(LITEX_DDRETHMIN_DIR)/build-openXC7
-	cd $(LITEX_DDRETHMIN_DIR)/build-openXC7/gateware && $(PINNED_YOSYS) -q -p \
-		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+	cd $(LITEX_DDRETHMIN_DIR)/build-openXC7/gateware && $(SYNTH_CMD) --top $(LITEX_TOP) --out $(LITEX_TOP).json \
 		$(VEXRISCV_V) $(ETHMIN_PHY_V) $(LITEX_TOP).v
 	$(NEXTPNR_BIN) --device $(LITEX_PART) \
 		-o xdc=$(LITEX_DDRETHMIN_DIR)/build-openXC7/gateware/$(LITEX_TOP).xdc \
@@ -626,7 +646,7 @@ SMPSD_OUT ?= litex_ddr_ethmin_smpsd_vc707.bit
 SMPSD_RAM ?= $(CURDIR)/litex-deps/pythondata-cpu-vexriscv-smp/pythondata_cpu_vexriscv_smp/verilog/Ram_1w_1rs_Generic.v
 
 vc707-litex-ddr-ethmin-smpsd: fasm2netlist nextpnr
-	@scripts/pinned_yosys.sh >/dev/null
+	@$(SYNTH_CMD) --check >/dev/null
 	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
 	rm -rf $(SMPSD_DIR)
@@ -636,8 +656,7 @@ vc707-litex-ddr-ethmin-smpsd: fasm2netlist nextpnr
 		--with-sdcard --flow openXC7 --no-compile-gateware --build \
 		$(if $(LITEX_REMOTE_IP),--remote-ip $(LITEX_REMOTE_IP)) $(if $(LITEX_LOCAL_IP),--local-ip $(LITEX_LOCAL_IP)) \
 		--output-dir $(SMPSD_DIR)
-	cd $(SMPSD_DIR)/gateware && $(PINNED_YOSYS) -q -p \
-		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+	cd $(SMPSD_DIR)/gateware && $(SYNTH_CMD) --top $(LITEX_TOP) --out $(LITEX_TOP).json \
 		$(SMPSD_RAM) $$(ls VexRiscvLitexSmpCluster_*.v) $(ETHMIN_PHY_V) $(LITEX_TOP).v
 	$(NEXTPNR_BIN) --device $(LITEX_PART) \
 		-o xdc=$(SMPSD_DIR)/gateware/$(LITEX_TOP).xdc \
@@ -665,7 +684,7 @@ SMP1GB_DIR ?= $(LITEX_DDRETHMIN_DIR)/build-smpsd-ddr64-l2
 SMP1GB_OUT ?= litex_smpsd_1gb_vc707.bit
 SMP1GB_PNR_FLAGS ?= -o delay-matrix=$(LITEX_DDRETHMIN_DIR)/delay-matrix-xc7vx485t.txt --placer-heap-timingweight 100
 vc707-litex-ddr-ethmin-smpsd-1gb: fasm2netlist nextpnr
-	@scripts/pinned_yosys.sh >/dev/null
+	@$(SYNTH_CMD) --check >/dev/null
 	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
 	rm -rf $(SMP1GB_DIR)
@@ -676,8 +695,7 @@ vc707-litex-ddr-ethmin-smpsd-1gb: fasm2netlist nextpnr
 		--flow openXC7 --no-compile-gateware --build \
 		$(if $(LITEX_REMOTE_IP),--remote-ip $(LITEX_REMOTE_IP)) $(if $(LITEX_LOCAL_IP),--local-ip $(LITEX_LOCAL_IP)) \
 		--output-dir $(SMP1GB_DIR)
-	cd $(SMP1GB_DIR)/gateware && $(PINNED_YOSYS) -q -p \
-		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+	cd $(SMP1GB_DIR)/gateware && $(SYNTH_CMD) --top $(LITEX_TOP) --out $(LITEX_TOP).json \
 		$(SMPSD_RAM) $$(ls VexRiscvLitexSmpCluster_*.v) $(ETHMIN_PHY_V) $(LITEX_TOP).v
 	$(NEXTPNR_BIN) --device $(LITEX_PART) \
 		-o xdc=$(SMP1GB_DIR)/gateware/$(LITEX_TOP).xdc \
@@ -716,7 +734,7 @@ HP2000_RTL   := $(CURDIR)/examples/hp2000/rtl/hp2000_top.v $(CURDIR)/examples/hp
                 $(CURDIR)/examples/hp2000/rtl/dev/hp_tbg.v $(CURDIR)/examples/hp2000/rtl/dev/hp_mux.v
 
 vc707-hp2000: tools fasm2netlist nextpnr
-	@scripts/pinned_yosys.sh >/dev/null
+	@$(SYNTH_CMD) --check >/dev/null
 	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
 	$(MAKE) -C $(HP2000_DIR) bios-assets
@@ -727,8 +745,7 @@ vc707-hp2000: tools fasm2netlist nextpnr
 		--with-ethmin-phy --with-sdcard --l2-size 131072 --with-led-chaser --with-dhcp \
 		--flow openXC7 --no-compile-gateware --with-hp2000 --build \
 		--output-dir ../build/litex-hp2000
-	cd $(HP2000_BUILD)/gateware && $(PINNED_YOSYS) -q -p \
-		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+	cd $(HP2000_BUILD)/gateware && $(SYNTH_CMD) --top $(LITEX_TOP) --out $(LITEX_TOP).json \
 		$(SMPSD_RAM) $$(ls VexRiscvLitexSmpCluster_*.v) $(ETHMIN_PHY_V) $(LITEX_TOP).v $(HP2000_RTL)
 	$(NEXTPNR_BIN) --device $(LITEX_PART) \
 		-o xdc=$(HP2000_BUILD)/gateware/$(LITEX_TOP).xdc \
@@ -783,7 +800,7 @@ ROCKET_RTL      = $(ROCKET_VDIR)/generated-src/freechips.rocketchip.system.$(ROC
                   $(ROCKET_VDIR)/vsrc/EICG_wrapper.v
 
 vc707-litex-rocket: fasm2netlist nextpnr
-	@scripts/pinned_yosys.sh >/dev/null
+	@$(SYNTH_CMD) --check >/dev/null
 	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
 	@test -x "$(PYTHON)" || { echo "Run 'make setup' first"; exit 2; }
 	rm -rf $(ROCKET_DIR)
@@ -798,8 +815,7 @@ vc707-litex-rocket: fasm2netlist nextpnr
 	# of thousands of LUTs each.  Selected by shape, so regenerating the SoC
 	# does not silently leave them unannotated.
 	$(PYTHON) scripts/rocket_bramstyle.py $(ROCKET_DIR)/gateware/$(LITEX_TOP).v
-	cd $(ROCKET_DIR)/gateware && $(PINNED_YOSYS) -q -p \
-		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+	cd $(ROCKET_DIR)/gateware && $(SYNTH_CMD) --top $(LITEX_TOP) --out $(LITEX_TOP).json \
 		$(ROCKET_RTL) $(ETHMIN_PHY_V) $(LITEX_TOP).v
 	$(NEXTPNR_BIN) --device $(LITEX_PART) \
 		-o xdc=$(ROCKET_DIR)/gateware/$(LITEX_TOP).xdc \
@@ -817,7 +833,7 @@ vc707-litex-rocket-flash:
 
 # Linux, through the open flow.  See examples/vc707-litex-linux/README.md.
 vc707-litex-linux: tools fasm2netlist nextpnr
-	@scripts/pinned_yosys.sh >/dev/null
+	@$(SYNTH_CMD) --check >/dev/null
 	@test -n "$(LITEX_REMOTE_IP)" || { echo "could not work out this host's IP; pass LITEX_REMOTE_IP=..."; exit 2; }
 	@echo "network boot will look for a TFTP server at $(LITEX_REMOTE_IP)"
 	@echo "  (serve it with 'make tftp-serve'; override with LITEX_REMOTE_IP=...)"
@@ -828,8 +844,7 @@ vc707-litex-linux: tools fasm2netlist nextpnr
 		--with-ddr --with-ethmin-phy --flow openXC7 --no-compile-gateware \
 		$(if $(LITEX_REMOTE_IP),--remote-ip $(LITEX_REMOTE_IP)) $(if $(LITEX_LOCAL_IP),--local-ip $(LITEX_LOCAL_IP)) \
 		--build --output-dir $(LINUX_BUILD)
-	cd $(LINUX_BUILD)/gateware && $(PINNED_YOSYS) -q -p \
-		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); write_json $(LITEX_TOP).json' \
+	cd $(LINUX_BUILD)/gateware && $(SYNTH_CMD) --top $(LITEX_TOP) --out $(LITEX_TOP).json \
 		$(VEXRISCV_LINUX_V) $(ETHMIN_PHY_V) $(LITEX_TOP).v
 	$(NEXTPNR_BIN) --device $(LITEX_PART) -o xdc=$(LINUX_BUILD)/gateware/$(LITEX_TOP).xdc \
 		--json $(LINUX_BUILD)/gateware/$(LITEX_TOP).json \
@@ -941,11 +956,18 @@ vc707-litex-ddr-ethmin-flash:
 vc707-litex-ddr-ethmin-vivado-pnr:
 	@test -f $(LITEX_DDRETHMIN_DIR)/build-openXC7/gateware/$(LITEX_TOP).v || { \
 	  echo "run 'make vc707-litex-ddr-ethmin' first"; exit 2; }
-	@scripts/pinned_yosys.sh >/dev/null
+	@$(SYNTH_CMD) --check >/dev/null
 	mkdir -p $(LITEX_DDRETHMIN_DIR)/vivado-pnr/edif
+ifeq ($(SYNTH),yosys)
 	cd $(LITEX_DDRETHMIN_DIR)/build-openXC7/gateware && $(PINNED_YOSYS) -q -p \
 		'synth_xilinx -flatten -abc9 -arch xc7 -top $(LITEX_TOP); delete t:$$scopeinfo; write_edif -pvector bra $(CURDIR)/$(LITEX_DDRETHMIN_DIR)/vivado-pnr/edif/$(LITEX_TOP).edif' \
 		$(VEXRISCV_V) $(ETHMIN_PHY_V) $(LITEX_TOP).v
+else
+	cd $(LITEX_DDRETHMIN_DIR)/build-openXC7/gateware && $(SYNTH_CMD) --top $(LITEX_TOP) \
+		--out $(CURDIR)/$(LITEX_DDRETHMIN_DIR)/vivado-pnr/edif/$(LITEX_TOP).json \
+		--edif $(CURDIR)/$(LITEX_DDRETHMIN_DIR)/vivado-pnr/edif/$(LITEX_TOP).edif \
+		$(VEXRISCV_V) $(ETHMIN_PHY_V) $(LITEX_TOP).v
+endif
 	$(VIVADO_BIN)/vivado -mode batch -nojournal -nolog -source scripts/vivado_pnr_netlist.tcl \
 		-tclargs $(CURDIR)/$(LITEX_DDRETHMIN_DIR)/vivado-pnr/edif/$(LITEX_TOP).edif \
 		$(CURDIR)/$(LITEX_DDRETHMIN_DIR)/build-openXC7/gateware/$(LITEX_TOP).xdc \
@@ -970,8 +992,8 @@ vc707-litex-ddr-eth-flash-vivado:
 # inverter.  Small, but the only example here that exercises the carry chain,
 # which is a part of the fabric a design without one cannot check at all.
 arty-blinky: tools nextpnr
-	@scripts/pinned_yosys.sh >/dev/null
-	cd $(ARTY_DIR) && $(PINNED_YOSYS) -p 'synth_xilinx -flatten -abc9 -nobram -arch xc7 -top blinky; write_json blinky.json' blinky.v
+	@$(SYNTH_CMD) --check >/dev/null
+	cd $(ARTY_DIR) && $(SYNTH_CMD) --nobram --top blinky --out blinky.json blinky.v
 	$(NEXTPNR_BIN) --device $(ARTY_PART) -o xdc=$(ARTY_DIR)/blinky.xdc --json $(ARTY_DIR)/blinky.json \
 		-o fasm=$(ARTY_DIR)/blinky.fasm -o placement=$(ARTY_DIR)/blinky_placement.json --router router2 $(NEXTPNR_FLAGS)
 	$(PYTHON) scripts/convert.py --arch xilinx --family xc7 \
@@ -988,8 +1010,9 @@ endif
 # not cover are printed with the reason rather than left out.
 verify-examples: fasm2netlist nextpnr
 	@scripts/pinned_yosys.sh >/dev/null
+	@$(SYNTH_CMD) --check >/dev/null
 	@scripts/prjxray_db.sh "$(PRJXRAY_DB)" "$(PRJXRAY_DB_REV)"
-	YOSYS=$(PINNED_YOSYS) NEXTPNR_BIN=$(NEXTPNR_BIN) PRJXRAY_DB=$(PRJXRAY_DB) \
+	SYNTH=$(SYNTH) YOSYS=$(PINNED_YOSYS) NEXTPNR_BIN=$(NEXTPNR_BIN) PRJXRAY_DB=$(PRJXRAY_DB) \
 		TILEVERILOG=$(TILEVERILOG) LVS_EQUIV=$(LVS_EQUIV) OUT=$(VERIFY_DIR)/examples \
 		scripts/verify_examples.sh $(DESIGNS)
 

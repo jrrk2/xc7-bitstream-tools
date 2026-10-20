@@ -27,11 +27,27 @@ distributed RAM, carry chains, an MMCM) at 2820 proved obligations and no
 differences. `fasm2netlist/README.md` describes what the checker models, what
 it cuts at a boundary, and what it assumes.
 
-yosys is pinned as a submodule and built from source, because which yosys
-synthesised a design decides what the proof is even asking -- the same SoC
-proves completely under the pinned version and shows differences under another,
-since the two produce different netlists. `make yosys` builds it, and the sweep
+## Synthesis
+
+The examples are synthesised by Verilator: the synthesis backend on the
+`synthesis` branch of https://github.com/jrrk2/verilator, pinned as the
+`verilator` submodule and built by `make verilator`. Verilator elaborates the
+design itself -- SystemVerilog included, so no example needs an sv2v pass --
+and maps it in process, with ABC, to the primitives nextpnr places: LUTs,
+flip-flops, CARRY4 chains for adders, subtractors and comparisons, DSP48E1s for
+multiplies, block and distributed RAM with their contents. Every target calls
+`scripts/synth.sh`, which keeps any Xilinx primitive the design instantiates
+as a cell and refuses a Verilator other than the pinned build unless
+`VERILATOR_UNPINNED=1` says you mean it.
+
+`SYNTH=yosys` synthesises with yosys's `synth_xilinx` instead. yosys is pinned
+as a submodule and built from source too, because which synthesiser produced a
+netlist decides what the proof is even asking -- the same SoC proves
+completely under the pinned version and shows differences under another, since
+the two produce different netlists. `make yosys` builds it, and the sweep
 refuses to run with a different one unless `YOSYS_UNPINNED=1` says you mean it.
+It is needed whichever synthesiser runs: the proof reads the gold netlist
+through it.
 
 ## Setup
 
@@ -39,6 +55,7 @@ refuses to run with a different one unless `YOSYS_UNPINNED=1` says you mean it.
 git submodule update --init --recursive
 cmake -S prjxray -B prjxray/build -DCMAKE_BUILD_TYPE=Release
 make tools
+make verilator
 make yosys
 make setup
 ```
@@ -85,7 +102,8 @@ make vc707-johnson PRJXRAY_DB=/path/to/prjxray-db
 The target configures and builds one multi-device Himbaechel/Xilinx binary,
 using its `xc7a50t` and `xc7vx485t` chip databases, then runs synthesis,
 place-and-route, FASM conversion, and raw-bitstream packaging. It requires
-Yosys on `PATH` (or `YOSYS=/path/to/yosys`).
+the pinned Verilator (`make verilator`), or the pinned yosys with
+`SYNTH=yosys`.
 
 Convert an existing routed VC707 FASM with:
 

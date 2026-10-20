@@ -62,6 +62,7 @@ jobs:
           echo "nextpnr=$(git -C nextpnr rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "db=$(git -C .deps/prjxray-db rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "yosys=$(git -C yosys rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "verilator=$(git -C verilator rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       # The same keys verify-examples.yml uses, so the two workflows share one
       # chipdb rather than generating it twice per push.  Both devices, since
@@ -164,6 +165,31 @@ jobs:
             yosys/yosys-abc
             yosys/share
           key: yosys-bin2-${{ steps.keys.outputs.yosys }}-${{ runner.os }}
+
+      # The default synthesiser: Verilator's synthesis backend, pinned as the
+      # `verilator` submodule and built from it, cached on that submodule's
+      # sha like yosys.  Only verilator_bin is built output; the wrapper script
+      # and include files beside it are the checkout itself.
+      - name: Restore the pinned verilator
+        id: cache-verilator
+        uses: actions/cache/restore@v4
+        with:
+          path: verilator/bin/verilator_bin
+          key: verilator-bin-${{ steps.keys.outputs.verilator }}-${{ runner.os }}
+
+      - name: Build the pinned verilator
+        if: steps.cache-verilator.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get install -y autoconf flex bison libfl-dev help2man perl python3
+          make verilator
+          strip verilator/bin/verilator_bin
+
+      - name: Save the pinned verilator
+        if: always() && steps.cache-verilator.outputs.cache-hit != 'true' && hashFiles('verilator/bin/verilator_bin') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: verilator/bin/verilator_bin
+          key: verilator-bin-${{ steps.keys.outputs.verilator }}-${{ runner.os }}
 
       - name: Check no package-manager yosys crept back in
         run: bash scripts/check_no_apt_yosys.sh

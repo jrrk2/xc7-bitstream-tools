@@ -79,3 +79,11 @@
 [submodule "litex-deps/pythondata-cpu-naxriscv"]
 	path = litex-deps/pythondata-cpu-naxriscv
 	url = https://github.com/litex-hub/pythondata-cpu-naxriscv.git
+[submodule "verilator"]
+	path = verilator
+	url = https://github.com/jrrk2/verilator.git
+	branch = synthesis
+	# The default synthesiser (scripts/synth.sh).  Built in-tree by
+	# `make verilator`, so like yosys only the working tree is ignored: a
+	# change to the pinned COMMIT still shows up.
+	ignore = dirty

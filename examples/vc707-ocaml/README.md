@@ -23,7 +23,8 @@ doubles in the source repository -- every operation, bit for bit.
 
 ## What is here
 
-    vm_sv2v.v            the processor, converted from SystemVerilog
+    ocaml4142_vm_rtl.sv  the processor, in SystemVerilog
+    state_rtl_complete.h its state and opcode definitions, `included by it
     fpu_hardfloat.v      a double-precision FPU on the processor's trap port
     recode64.v           IEEE-754 <-> HardFloat's recoded format
     hardfloat.v          Berkeley HardFloat's cores (BSD)
@@ -38,18 +39,21 @@ The Ethernet, clocking and UART RTL is shared with `../vc707-ethmin/rtl`
 rather than copied: the two SoCs differ only in the processor.
 
 `$readmemh` reads `program.hex`, `heap.hex` and `globals.hex` by relative
-path, so synthesis must run **in this directory**. Run yosys anywhere else
+path, so synthesis must run **in this directory**. Run it anywhere else
 and the ROM reads as zero, silently, and the processor boots into nothing.
 
 ## Provenance
 
 The processor and SoC come from https://github.com/jrrk2/bytecode
-(`ocaml4142_vm_rtl.sv`, `fpga/vc707-ethmin`). `vm_sv2v.v` is generated,
-because yosys does not read the SystemVerilog the processor is written in:
+(`ocaml4142_vm_rtl.sv`, `fpga/vc707-ethmin`). The processor is that
+repository's SystemVerilog, unconverted -- `ocaml4142_vm_rtl.sv` and the
+`state_rtl_complete.h` it includes, as of bytecode commit 4bd1d08. Verilator,
+the default synthesiser here, elaborates SystemVerilog itself, so there is no
+sv2v step. (An sv2v conversion of the same commit is what this directory used
+to carry for yosys; `SYNTH=yosys` cannot read the SystemVerilog, so build this
+example with the default synthesiser.)
 
-    sv2v -DSYNTHESIS -I<bytecode> <bytecode>/ocaml4142_vm_rtl.sv > vm_sv2v.v
-
-Regenerate it with the same command when the processor changes. The `.hex`
+Copy both files again when the processor changes. The `.hex`
 images come from that repository's `tools/progimage.sh io/netboot.ml`.
 
 ## The clock
