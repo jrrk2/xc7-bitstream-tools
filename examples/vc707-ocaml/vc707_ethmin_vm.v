@@ -64,11 +64,11 @@ module vc707_ethmin_vm (
 		.IO_CLK_P(IO_CLK_P), .IO_CLK_N(IO_CLK_N), .IO_RST_N(~IO_RST),
 		.clk_sys(clk_sys), .clk_mac(clk_mac),
 		.rst_sys_n(rst_sys_n), .locked(locked));
-	// CPU_RESET.  clkgen_vc707 takes IO_RST_N but never uses it (its MMCM
-	// reset is tied off and rst_sys_n is just LOCKED), so the button is
-	// handled here: synchronised to clk_sys and held for 2^16 cycles
-	// (2.6 ms) after release.  It resets everything, the Ethernet side
-	// included, so the DMA's clock-crossing toggles restart together.
+	// CPU_RESET.  clkgen_vc707 resets its MMCM from it, so rst_sys_n falls
+	// while it is held; it is also synchronised to clk_sys here and held for
+	// 2^16 cycles (2.6 ms) after release.  It resets everything, the
+	// Ethernet side included, so the DMA's clock-crossing toggles restart
+	// together.
 	reg [1:0]  button_sync = 2'b00;
 	reg [15:0] button_hold = 16'd0;
 	always @(posedge clk_sys) begin

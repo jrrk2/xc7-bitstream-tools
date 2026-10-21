@@ -69,7 +69,7 @@ module clkgen_vc707 #(
     .CLKINSTOPPED(), .CLKFBSTOPPED(),
     .LOCKED   (locked_mmcm),
     .PWRDWN   (1'b0),
-    .RST      (1'b0)
+    .RST      (!IO_RST_N)
   );
 
   BUFG clk_sys_bufg (
@@ -82,10 +82,10 @@ module clkgen_vc707 #(
     .O(clk_mac)
   );
 
-  // POR from MMCM lock ONLY: the VC707 CPU_RESET input (AV40) single-ended
-  // LVCMOS18 IOB is marginal/build-dependent on the open flow (its ILOGIC
-  // ZINV_D is a prjxray segbit gap), so gating reset on it spuriously holds
-  // the core in reset.  Self-boot from BRAM needs no button; release on lock.
+  // Reset is MMCM lock: the VC707 CPU_RESET button (AV40, IO_RST_N here)
+  // resets the MMCM, so LOCKED -- and rst_sys_n with it -- falls while it is
+  // held and rises when the MMCM locks again.  The MMCM's RST used to be
+  // tied off, when the open flow could not be trusted with that pin; it can.
   assign rst_sys_n = locked_mmcm;
   assign locked    = locked_mmcm;
 endmodule
