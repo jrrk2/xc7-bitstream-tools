@@ -155,3 +155,37 @@ the same netlist reads its ROM cleanly and boots Linux.  OpenSTA on nextpnr's
 SDF (per-cell SDF blocks dropped, which crash its reader) tells the working
 placements from the failing ones where nextpnr's own report does not: worst
 ROM path -1.24 ns on the build that boots, -5.42 ns on one that does not.
+
+### The fix in nextpnr, and a figure of merit
+
+nextpnr's `clock-tree-bram-place` branch adds both halves: the clock tree's
+insertion delay (`clock_tree.cc`; `-o clock-tree=off` to disable), and a
+block RAM pass (`bram_place.cc`; `-o bram-place=off`).  After the heap
+placement it groups the block RAMs by their read-mux cones (this ROM: 32
+groups of 20, one per data bit), anchors each group at the registers its
+cones end in, regrows the groups together from their anchors by estimated
+delay plus clock skew, locks them, and places everything else again around
+them.  With it, and nothing from Vivado, the same netlist (N2) reads its ROM
+cleanly, unpacks every image, boots Linux and takes a DHCP lease.
+
+`bram_fom.py` scores a placement's block RAMs from the placement alone, so
+it compares nextpnr's placements with Vivado's: each block RAM's worst
+estimated arrival at the registers its read cone ends in (the measured delay
+matrix, plus the clock-tree skew).  Against the board:
+
+| placement | board | worst | p95 | OpenSTA worst ROM path |
+|---|---|---|---|---|
+| Vivado | boots | 4908 ps | 4084 ps | |
+| N2: nextpnr, new block RAM placement | boots | 5048 ps | 4187 ps | -2.58 ns |
+| V: Vivado's block RAM sites, nextpnr logic | boots | 5663 ps | 5038 ps | -3.77 ns |
+| D: nextpnr, before the netlist fix | boots | 5995 ps | 4979 ps | -1.24 ns |
+| H: nextpnr, seed 2 | ROM reads wrongly | 6251 ps | 5113 ps | |
+| G: nextpnr | ROM reads wrongly | 6961 ps | 5639 ps | -5.42 ns |
+
+Every placement that works is at or under 6.0 ns worst and 5.04 ns p95;
+both that fail are over.  The three block RAMs that failed in H rank #11,
+#31 and #113 of 735 by score.
+
+    bram_fom.py --netlist xilinx_vc707.json --tilegrid <prjxray-db>/virtex7/xc7vx485t/tilegrid.json \
+        --delay-matrix delay-matrix-xc7vx485t.txt N2=xilinx_vc707_placement.json \
+        vivado=vivado:cell_sites.txt
