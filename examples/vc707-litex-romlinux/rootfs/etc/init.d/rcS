@@ -1,0 +1,17 @@
+#!/bin/sh
+# Only bin/sh exists until --install has made the applet links, which wants
+# /proc (it finds busybox through /proc/self/exe); so these first ones name
+# busybox themselves
+/bin/busybox mount -t proc proc /proc
+/bin/busybox mount -t sysfs sysfs /sys
+/bin/busybox mount -t devtmpfs devtmpfs /dev 2>/dev/null
+/bin/busybox --install -s
+mount -t tmpfs tmpfs /tmp
+hostname vc707
+ifconfig lo 127.0.0.1 up
+# an address, default route and resolv.conf from DHCP (usr/share/udhcpc/default.script);
+# -b carries on in the background if no lease comes at once
+ifconfig eth0 up 2>/dev/null && udhcpc -i eth0 -b -q -t 5 >/dev/null 2>&1
+echo
+echo "Linux $(uname -r) on the VC707, booted from the BIOS ROM"
+echo
