@@ -93,3 +93,5 @@ eigen-kit.tar.gz
 
 # Generated build trees for the example designs
 examples/*/build-*/
+# example verification output (scripts/verify_examples.sh)
+/.verify-verilator/
