@@ -64,11 +64,33 @@ p.update({
     "incdirs": [r],
     "defines": ["SYNTHESIS"],
     "blackboxes": blackboxes,
-    # The DDR clock closes 100 MHz only with the measured delay matrix and
-    # a raised timing weight (vc707-litex-linux-1gb in nextpnr's examples)
-    "nextpnr_flags": "--router router2 --timing-allow-fail -o hold-fix -o delay-matrix=" + r +
-                     "/delay-matrix-xc7vx485t.txt --placer-heap-timingweight 100",
+    "nextpnr": "{builds}/nextpnr/nextpnr-himbaechel",
+    # The flags the board build used (see the README): the measured delay
+    # matrix and a raised timing weight close the DDR clock, congestion
+    # spreading is what makes it work at all, and the clock-tree model and
+    # block RAM placement are what make the ROM read correctly
+    "options": {
+        "pnr.router": "router2",
+        "pnr.allow_fail": "1",
+        "pnr.hold_fix": "8",
+        "pnr.delay_matrix": r + "/delay-matrix-xc7vx485t.txt",
+        "pnr.timingweight": "100",
+        "pnr.cong_spread": "1",
+        "pnr.clock_tree": "on",
+        "pnr.bram_place": "on",
+    },
+    # bram_fom.py's score of the block RAM placement, worst/p95 in ps: every
+    # placement that read the ROM on the board was 5995 or less worst, the
+    # two that did not 6251 and 6961 (the p95 limit is a backstop)
+    "bram_fom_budget": "6100/5400",
 })
+# The block RAM figure of merit, after place and route
+fom = {"id": "fom", "label": "Block RAM merit",
+       "command": "{python} {bram_fom} --netlist {json} --tilegrid {prjxray_db}/{family}/{device}/tilegrid.json "
+                  "--delay-matrix {delay_matrix_file} {top}={placement}"}
+steps = [s for s in p["steps"] if s["id"] != "fom"]
+p["steps"] = steps[:[s["id"] for s in steps].index("pnr") + 1] + [fom] + steps[[s["id"] for s in steps].index("pnr") + 1:]
+p.pop("nextpnr_flags", None)
 json.dump(p, open(os.path.join(sg, "projects", name + ".json"), "w"), indent=2)
 open(os.path.join(sg, "projects", name + ".json"), "a").write("\n")
 print("wrote projects/%s.json and %d files in projects/%s-src; black boxes: %s"

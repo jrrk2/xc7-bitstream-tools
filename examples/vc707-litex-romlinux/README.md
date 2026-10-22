@@ -177,15 +177,47 @@ matrix, plus the clock-tree skew).  Against the board:
 |---|---|---|---|---|
 | Vivado | boots | 4908 ps | 4084 ps | |
 | N2: nextpnr, new block RAM placement | boots | 5048 ps | 4187 ps | -2.58 ns |
+| synthgui's nextpnr (another prjxray-db) | ROM reads | 5632 ps | 5083 ps | |
 | V: Vivado's block RAM sites, nextpnr logic | boots | 5663 ps | 5038 ps | -3.77 ns |
 | D: nextpnr, before the netlist fix | boots | 5995 ps | 4979 ps | -1.24 ns |
 | H: nextpnr, seed 2 | ROM reads wrongly | 6251 ps | 5113 ps | |
 | G: nextpnr | ROM reads wrongly | 6961 ps | 5639 ps | -5.42 ns |
 
-Every placement that works is at or under 6.0 ns worst and 5.04 ns p95;
-both that fail are over.  The three block RAMs that failed in H rank #11,
+Every placement that works scores 5995 ps or less worst, both that fail
+6251 ps or more; the p95 alone does not separate them (5083 reads, 5113 does
+not).  The gap is about 250 ps, so the score is a screen for which
+placements to try on the board, not a proof.  The three block RAMs that failed in H rank #11,
 #31 and #113 of 735 by score.
 
     bram_fom.py --netlist xilinx_vc707.json --tilegrid <prjxray-db>/virtex7/xc7vx485t/tilegrid.json \
         --delay-matrix delay-matrix-xc7vx485t.txt N2=xilinx_vc707_placement.json \
         vivado=vivado:cell_sites.txt
+
+### The network
+
+With N3 (the netlist through Verilator and nextpnr with the clock-tree and
+block RAM work) booted and holding a DHCP lease, iperf3 against a host on
+the same gigabit switch (`iperf3-kit`, `net-stress`), against the Vivado
+build of the same netlist:
+
+| test | Vivado P&R | nextpnr P&R (N3) |
+|---|---|---|
+| TCP, board sending | 10.3 Mbit/s, 0 retransmits | 10.2 Mbit/s, 0 retransmits |
+| TCP, board receiving | 6.70 Mbit/s, 1655 retransmits | 6.49 Mbit/s, 1515 retransmits |
+| TCP, both ways at once | | 3.98 + 4.13 Mbit/s |
+| TCP, receiving, 4 streams | | 6.99 Mbit/s in all |
+| UDP 100 Mbit/s offered, board sending | | 8.9 Mbit/s, 0% lost |
+| UDP 5 Mbit/s, board receiving | | 0.02% lost |
+| UDP 20 Mbit/s, board receiving | | never finished: the control connection starved |
+| UDP 100 Mbit/s, board receiving | | 99.94% lost, 50 kbit/s delivered |
+
+The two place-and-route flows behave alike; the limits are the SoC's.  One
+100 MHz VexRiscv runs the TCP/IP stack and copies every frame through
+LiteEth's two receive and two transmit slots, so about 10 Mbit/s out and 6.5
+in is what it can do.  Received at that rate or below, nothing is lost.
+Offered more, it livelocks: every arriving frame interrupts, and the CPU
+spends its time taking interrupts and dropping frames, so delivery falls to
+almost nothing (TCP backs off and survives it with retransmits; UDP does
+not).  The cure is in the SoC: frames streamed into DDR by a receive DMA
+through a FIFO, with NAPI polling in the LiteEth driver, and more receive
+slots.
