@@ -22,7 +22,8 @@ the score ranks placements; it is not a slack.
 
 A nextpnr placement is its -o placement=... JSON; a Vivado one is "cell site"
 lines (get_cells ... SITE).  --mark names block RAMs to report the rank of
-(ones known to fail, say)."""
+(ones known to fail, say).  --max-worst and --max-p95 make it a gate: exit 1
+if any placement scores over them."""
 import argparse, collections, json, re, statistics
 
 
@@ -139,6 +140,8 @@ def main():
     ap.add_argument("--budget", type=float, default=3000, help="score (ps) beyond which a block RAM counts as over")
     ap.add_argument("--mark", default="", help="comma-separated block RAMs to rank")
     ap.add_argument("--top", type=int, default=5)
+    ap.add_argument("--max-worst", type=float, help="fail (exit 1) if a placement's worst score is over this")
+    ap.add_argument("--max-p95", type=float, help="fail (exit 1) if a placement's 95th percentile is over this")
     ap.add_argument("placements", nargs="+", help="NAME=placement.json or NAME=vivado:cell_sites.txt")
     a = ap.parse_args()
 
@@ -149,6 +152,7 @@ def main():
     dm, ct = DelayMatrix(a.delay_matrix), ClockTree(tg)
     marks = [m for m in a.mark.split(",") if m]
 
+    failed = []
     print("%-22s %6s %6s %6s %6s %8s  %s" % ("placement", "worst", "p95", "p50", "over", "unplaced", "marked ranks"))
     for spec in a.placements:
         name, path = spec.split("=", 1)
@@ -176,6 +180,14 @@ def main():
         print("%-22s %6.0f %6.0f %6.0f %6d %8d  %s" % (name, v[-1], p(0.95), p(0.5), over, missing, ranks))
         for b in ranked[:a.top]:
             print("    %-24s %6.0f  at X%dY%d" % (b, scores[b], *pl[b]))
+        if a.max_worst is not None and v[-1] > a.max_worst:
+            failed.append("%s: worst %.0f ps is over %.0f" % (name, v[-1], a.max_worst))
+        if a.max_p95 is not None and p(0.95) > a.max_p95:
+            failed.append("%s: p95 %.0f ps is over %.0f" % (name, p(0.95), a.max_p95))
+    for f in failed:
+        print("FAIL " + f)
+    if failed:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
